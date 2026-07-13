@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, BarChart3, MoreHorizontal } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
@@ -12,9 +12,11 @@ import type { Transaction } from '../types';
 export default function HomePage() {
   const {
     currentLedger,
+    ledgers,
     transactions,
     categories,
     isLoading,
+    setCurrentLedger,
   } = useApp();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -23,6 +25,8 @@ export default function HomePage() {
   const [showCategory, setShowCategory] = useState(false);
   const [showRecurring, setShowRecurring] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [showLedgerSwitch, setShowLedgerSwitch] = useState(false);
+  const monthInputRef = useRef<HTMLInputElement>(null);
 
   const monthTransactions = useMemo(() => {
     if (!currentLedger) return [];
@@ -70,8 +74,6 @@ export default function HomePage() {
     setSelectedDate(d);
   };
 
-  const resetToToday = () => setSelectedDate(new Date());
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -93,7 +95,10 @@ export default function HomePage() {
       {/* Header */}
       <div className="bg-primary px-4 pt-4 pb-6 rounded-b-3xl shrink-0">
         <div className="flex items-center justify-between mb-4">
-          <button className="flex items-center gap-1 text-black/80">
+          <button
+            onClick={() => setShowLedgerSwitch(true)}
+            className="flex items-center gap-1 text-black/80"
+          >
             <span className="font-medium">{currentLedger.name}</span>
             <ChevronDown size={16} />
           </button>
@@ -105,12 +110,25 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="flex items-baseline gap-2 mb-4">
+        <div
+          className="flex items-baseline gap-2 mb-4 cursor-pointer"
+          onClick={() => monthInputRef.current?.click()}
+        >
           <span className="text-6xl font-bold">{String(selectedDate.getMonth() + 1).padStart(2, '0')}</span>
           <span className="text-lg">月</span>
-          <button onClick={resetToToday} className="ml-2">
-            <ChevronDown size={20} className="text-black/60" />
-          </button>
+          <ChevronDown size={20} className="text-black/60" />
+          <input
+            ref={monthInputRef}
+            type="month"
+            value={`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`}
+            onChange={(e) => {
+              if (e.target.value) {
+                const [year, month] = e.target.value.split('-').map(Number);
+                setSelectedDate(new Date(year, month - 1, 1));
+              }
+            }}
+            className="hidden"
+          />
         </div>
 
         <div className="flex">
@@ -260,6 +278,65 @@ export default function HomePage() {
           </div>
         </div>
       )}
+      {showLedgerSwitch && (
+        <LedgerSwitch
+          ledgers={ledgers}
+          currentLedger={currentLedger}
+          onSelect={async (ledgerId) => {
+            await setCurrentLedger(ledgerId);
+            setShowLedgerSwitch(false);
+          }}
+          onClose={() => setShowLedgerSwitch(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function LedgerSwitch({
+  ledgers,
+  currentLedger,
+  onSelect,
+  onClose,
+}: {
+  ledgers: { id: string; name: string; icon: string; color: string }[];
+  currentLedger: { id: string; name: string } | null;
+  onSelect: (ledgerId: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+      <div className="bg-white w-full rounded-t-2xl p-4 animate-in slide-in-from-bottom">
+        <div className="text-center text-gray-500 text-sm mb-4">切换账本</div>
+        <div className="space-y-2 mb-4">
+          {ledgers.map((ledger) => (
+            <button
+              key={ledger.id}
+              onClick={() => onSelect(ledger.id)}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl ${
+                currentLedger?.id === ledger.id ? 'bg-primary/10' : 'hover:bg-gray-50'
+              }`}
+            >
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white"
+                style={{ backgroundColor: ledger.color }}
+              >
+                <Icon name={ledger.icon} size={18} />
+              </div>
+              <span className="flex-1 text-left">{ledger.name}</span>
+              {currentLedger?.id === ledger.id && (
+                <span className="text-xs text-gray-500">当前</span>
+              )}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onClose}
+          className="w-full py-3 text-gray-500 bg-gray-100 rounded-xl"
+        >
+          取消
+        </button>
+      </div>
     </div>
   );
 }
