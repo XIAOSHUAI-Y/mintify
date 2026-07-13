@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, BarChart3, MoreHorizontal } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
@@ -26,7 +26,6 @@ export default function HomePage() {
   const [showRecurring, setShowRecurring] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showLedgerSwitch, setShowLedgerSwitch] = useState(false);
-  const monthInputRef = useRef<HTMLInputElement>(null);
 
   const monthTransactions = useMemo(() => {
     if (!currentLedger) return [];
@@ -110,16 +109,11 @@ export default function HomePage() {
           </div>
         </div>
 
-        <label
-          htmlFor="month-picker"
-          className="flex items-baseline gap-2 mb-4 cursor-pointer"
-        >
+        <label className="relative flex items-baseline gap-2 mb-4 cursor-pointer">
           <span className="text-6xl font-bold">{String(selectedDate.getMonth() + 1).padStart(2, '0')}</span>
           <span className="text-lg">月</span>
-          <ChevronDown size={20} className="text-black/60" />
+          <ChevronDown size={20} className="text-black/60 pointer-events-none" />
           <input
-            id="month-picker"
-            ref={monthInputRef}
             type="month"
             value={`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`}
             onChange={(e) => {
@@ -128,7 +122,7 @@ export default function HomePage() {
                 setSelectedDate(new Date(year, month - 1, 1));
               }
             }}
-            className="sr-only"
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
           />
         </label>
 
