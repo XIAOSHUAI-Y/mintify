@@ -89,9 +89,9 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="h-[calc(100vh-5rem)] flex flex-col">
       {/* Header */}
-      <div className="bg-primary px-4 pt-4 pb-6 rounded-b-3xl">
+      <div className="bg-primary px-4 pt-4 pb-6 rounded-b-3xl shrink-0">
         <div className="flex items-center justify-between mb-4">
           <button className="flex items-center gap-1 text-black/80">
             <span className="font-medium">{currentLedger.name}</span>
@@ -127,7 +127,7 @@ export default function HomePage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="flex py-4 bg-white">
+      <div className="flex py-4 bg-white shrink-0">
         <button className="flex-1 flex flex-col items-center gap-1 text-gray-700">
           <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50">
             <FileText size={22} className="text-yellow-600" />
@@ -155,7 +155,7 @@ export default function HomePage() {
       </div>
 
       {/* Transaction List */}
-      <div className="px-4 pb-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
         {groupedTransactions.length === 0 ? (
           <div className="text-center py-12 text-gray-400">本月还没有记账哦~</div>
         ) : (
