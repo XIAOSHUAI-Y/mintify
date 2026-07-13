@@ -110,14 +110,15 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div
+        <label
+          htmlFor="month-picker"
           className="flex items-baseline gap-2 mb-4 cursor-pointer"
-          onClick={() => monthInputRef.current?.click()}
         >
           <span className="text-6xl font-bold">{String(selectedDate.getMonth() + 1).padStart(2, '0')}</span>
           <span className="text-lg">月</span>
           <ChevronDown size={20} className="text-black/60" />
           <input
+            id="month-picker"
             ref={monthInputRef}
             type="month"
             value={`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`}
@@ -127,9 +128,9 @@ export default function HomePage() {
                 setSelectedDate(new Date(year, month - 1, 1));
               }
             }}
-            className="hidden"
+            className="sr-only"
           />
-        </div>
+        </label>
 
         <div className="flex">
           <div className="flex-1 text-center">
