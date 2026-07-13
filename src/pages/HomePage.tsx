@@ -26,6 +26,7 @@ export default function HomePage() {
   const [showRecurring, setShowRecurring] = useState(false);
   const [showMore, setShowMore] = useState(false);
   const [showLedgerSwitch, setShowLedgerSwitch] = useState(false);
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
 
   const monthTransactions = useMemo(() => {
     if (!currentLedger) return [];
@@ -109,22 +110,14 @@ export default function HomePage() {
           </div>
         </div>
 
-        <label className="relative flex items-baseline gap-2 mb-4 cursor-pointer">
+        <button
+          onClick={() => setShowMonthPicker(true)}
+          className="flex items-baseline gap-2 mb-4"
+        >
           <span className="text-6xl font-bold">{String(selectedDate.getMonth() + 1).padStart(2, '0')}</span>
           <span className="text-lg">月</span>
-          <ChevronDown size={20} className="text-black/60 pointer-events-none" />
-          <input
-            type="month"
-            value={`${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`}
-            onChange={(e) => {
-              if (e.target.value) {
-                const [year, month] = e.target.value.split('-').map(Number);
-                setSelectedDate(new Date(year, month - 1, 1));
-              }
-            }}
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-          />
-        </label>
+          <ChevronDown size={20} className="text-black/60" />
+        </button>
 
         <div className="flex">
           <div className="flex-1 text-center">
@@ -284,6 +277,66 @@ export default function HomePage() {
           onClose={() => setShowLedgerSwitch(false)}
         />
       )}
+      {showMonthPicker && (
+        <MonthPicker
+          selectedDate={selectedDate}
+          onSelect={(date) => {
+            setSelectedDate(date);
+            setShowMonthPicker(false);
+          }}
+          onClose={() => setShowMonthPicker(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function MonthPicker({
+  selectedDate,
+  onSelect,
+  onClose,
+}: {
+  selectedDate: Date;
+  onSelect: (date: Date) => void;
+  onClose: () => void;
+}) {
+  const [year, setYear] = useState(selectedDate.getFullYear());
+  const selectedMonth = selectedDate.getMonth();
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+      <div className="bg-white w-full rounded-t-2xl p-4 animate-in slide-in-from-bottom">
+        <div className="text-center text-gray-500 text-sm mb-4">选择月份</div>
+
+        <div className="flex items-center justify-between mb-4 px-4">
+          <button onClick={() => setYear((y) => y - 1)}><ChevronLeft size={24} /></button>
+          <span className="text-lg font-medium">{year}年</span>
+          <button onClick={() => setYear((y) => y + 1)}><ChevronRight size={24} /></button>
+        </div>
+
+        <div className="grid grid-cols-4 gap-3 mb-4">
+          {Array.from({ length: 12 }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => onSelect(new Date(year, i, 1))}
+              className={`py-3 rounded-xl text-sm font-medium ${
+                year === selectedDate.getFullYear() && i === selectedMonth
+                  ? 'bg-primary text-black'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {i + 1}月
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={onClose}
+          className="w-full py-3 text-gray-500 bg-gray-100 rounded-xl"
+        >
+          取消
+        </button>
+      </div>
     </div>
   );
 }
