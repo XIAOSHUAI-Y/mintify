@@ -48,6 +48,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   reminderTime: '21:00',
   presetTags: PRESET_TAGS,
   legacySettingsMigrated: false,
+  budgetRolloverMonthByLedger: {},
 };
 
 let dbPromise: Promise<IDBPDatabase<MintifyDB>> | null = null;
@@ -117,7 +118,14 @@ export async function clearStore(storeName: StoreNames<MintifyDB>): Promise<void
 export async function getAppSettings(): Promise<AppSettings> {
   const db = await getDB();
   const settings = await db.get('settings', DEFAULT_APP_SETTINGS.id);
-  if (settings) return settings;
+  if (settings) {
+    // 旧版设置对象没有预算继承游标，读取时补齐即可，无需升级整个数据库结构。
+    return {
+      ...DEFAULT_APP_SETTINGS,
+      ...settings,
+      budgetRolloverMonthByLedger: settings.budgetRolloverMonthByLedger ?? {},
+    };
+  }
 
   const defaults = { ...DEFAULT_APP_SETTINGS, presetTags: [...DEFAULT_APP_SETTINGS.presetTags] };
   await db.put('settings', defaults);

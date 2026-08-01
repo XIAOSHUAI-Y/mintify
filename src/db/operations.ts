@@ -14,7 +14,7 @@ import {
   saveAppSettings,
 } from './index';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../data/seed';
-import { generateId, getDayEnd, getDayStart, getMonthEnd, getMonthStart } from '../utils/helpers';
+import { generateId, getDayEnd, getDayStart, getMonthEnd, getMonthStart, getYearMonth } from '../utils/helpers';
 
 // Bootstrap
 export async function bootstrapIfNeeded(): Promise<void> {
@@ -140,6 +140,85 @@ export async function deleteBudget(budgetId: string): Promise<void> {
 
 export async function getBudgets(ledgerId: string): Promise<Budget[]> {
   return getBudgetsByLedger(ledgerId);
+}
+
+function getNextYearMonth(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-').map(Number);
+  return getYearMonth(new Date(year, month, 1).getTime());
+}
+
+/**
+ * 将最近一个月的预算逐月复制到目标月份。
+ * iOS PWA 无法保证在后台 0 点唤醒，因此应用启动时补齐遗漏月份更可靠。
+ */
+export async function ensureMonthlyBudgets(ledgerId: string, targetTimestamp = Date.now()): Promise<number> {
+  const targetYearMonth = getYearMonth(targetTimestamp);
+  const settings = await getAppSettings();
+  const lastProcessedMonth = settings.budgetRolloverMonthByLedger[ledgerId];
+  if (lastProcessedMonth && lastProcessedMonth >= targetYearMonth) return 0;
+
+  const budgets = await getBudgetsByLedger(ledgerId);
+  if (budgets.some((budget) => budget.yearMonth === targetYearMonth)) {
+    await saveAppSettings({
+      ...settings,
+      budgetRolloverMonthByLedger: {
+        ...settings.budgetRolloverMonthByLedger,
+        [ledgerId]: targetYearMonth,
+      },
+    });
+    return 0;
+  }
+
+  const previousMonths = [...new Set(
+    budgets
+      .map((budget) => budget.yearMonth)
+      .filter((yearMonth) => yearMonth < targetYearMonth),
+  )].sort();
+  let sourceYearMonth = previousMonths.at(-1);
+  if (!sourceYearMonth) {
+    await saveAppSettings({
+      ...settings,
+      budgetRolloverMonthByLedger: {
+        ...settings.budgetRolloverMonthByLedger,
+        [ledgerId]: targetYearMonth,
+      },
+    });
+    return 0;
+  }
+
+  let sourceBudgets = budgets.filter((budget) => budget.yearMonth === sourceYearMonth);
+  let createdCount = 0;
+
+  while (sourceYearMonth < targetYearMonth) {
+    const nextYearMonth = getNextYearMonth(sourceYearMonth);
+    const existingBudgets = budgets.filter((budget) => budget.yearMonth === nextYearMonth);
+
+    if (existingBudgets.length > 0) {
+      sourceBudgets = existingBudgets;
+    } else {
+      const createdAt = Date.now();
+      sourceBudgets = sourceBudgets.map((budget) => ({
+        ...budget,
+        id: generateId(),
+        yearMonth: nextYearMonth,
+        createdAt,
+      }));
+      for (const budget of sourceBudgets) await putItem('budgets', budget);
+      budgets.push(...sourceBudgets);
+      createdCount += sourceBudgets.length;
+    }
+
+    sourceYearMonth = nextYearMonth;
+  }
+
+  await saveAppSettings({
+    ...settings,
+    budgetRolloverMonthByLedger: {
+      ...settings.budgetRolloverMonthByLedger,
+      [ledgerId]: targetYearMonth,
+    },
+  });
+  return createdCount;
 }
 
 // Recurring rules

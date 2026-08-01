@@ -72,5 +72,7 @@ export interface AppSettings {
   reminderTime: string;
   presetTags: string[];
   legacySettingsMigrated: boolean;
+  /** 每个账本最后一次完成预算跨月处理的月份，避免用户删除后被自动恢复。 */
+  budgetRolloverMonthByLedger: Record<string, string>;
   lastBackupAt?: number;
 }
