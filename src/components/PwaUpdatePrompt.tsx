@@ -18,14 +18,14 @@ export function PwaUpdatePrompt() {
   return (
     <>
       {!dialogOpen && (needRefresh || offlineReady) && (
-        <div className="fixed bottom-24 left-4 right-4 z-[80] mx-auto max-w-sm rounded-2xl bg-gray-900 p-4 text-white shadow-xl">
+        <div className="fixed bottom-24 left-4 right-4 z-[80] mx-auto max-w-sm rounded-2xl border border-amber-100 bg-white p-4 text-slate-900 shadow-[0_16px_42px_rgba(15,23,42,0.14)]">
           <div className="flex items-start gap-3">
-            {needRefresh
-              ? <Download size={20} className="mt-0.5 shrink-0 text-primary" />
-              : <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-green-400" />}
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${needRefresh ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              {needRefresh ? <Download size={20} /> : <CheckCircle2 size={20} />}
+            </div>
             <div className="flex-1">
               <div className="font-medium">{needRefresh ? '新版本已准备好' : '现在可以离线使用'}</div>
-              <div className="mt-1 text-xs text-gray-300">
+              <div className="mt-1 text-xs leading-5 text-slate-500">
                 {needRefresh ? '账本数据不会被更新清除，确认后刷新程序文件。' : '程序资源已缓存到本机。'}
               </div>
               {needRefresh && (
@@ -37,7 +37,11 @@ export function PwaUpdatePrompt() {
                 </button>
               )}
             </div>
-            <button onClick={dismissPrompt} aria-label="关闭提示" className="text-gray-400">
+            <button
+              onClick={dismissPrompt}
+              aria-label="关闭提示"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-400"
+            >
               <X size={18} />
             </button>
           </div>
@@ -84,7 +88,7 @@ export function PwaUpdatePrompt() {
               {checkStatus === 'error' && (
                 <button
                   onClick={() => void checkForUpdates()}
-                  className="mt-5 min-h-12 w-full rounded-2xl bg-slate-900 px-5 font-semibold text-white"
+                  className="mt-5 min-h-12 w-full rounded-2xl bg-amber-100 px-5 font-semibold text-amber-900"
                 >
                   重新检查
                 </button>
