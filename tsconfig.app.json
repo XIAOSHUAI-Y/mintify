@@ -22,5 +22,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // 生产构建不应依赖 Vitest 等测试运行时；测试文件由 Vitest 单独加载。
+  "exclude": ["src/**/*.test.*", "src/**/*.spec.*"]
 }
