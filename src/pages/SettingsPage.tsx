@@ -10,6 +10,8 @@ import {
   type ImportOptions,
 } from '../db/operations';
 import { DEFAULT_APP_SETTINGS, getAppSettings, saveAppSettings } from '../db';
+import { usePwaUpdate } from '../pwa/update-context';
+import { APP_VERSION } from '../pwa/app-version';
 import {
   getStorageStatus,
   requestPersistentStorage,
@@ -30,6 +32,7 @@ export default function SettingsPage() {
     ledgers,
     runRecurringGenerator,
   } = useApp();
+  const { checkForUpdates } = usePwaUpdate();
 
   const [showLedgers, setShowLedgers] = useState(false);
   const [showTags, setShowTags] = useState(false);
@@ -262,10 +265,19 @@ export default function SettingsPage() {
           <span className="text-gray-500">同步状态</span>
           <span className="text-sm text-gray-600">{syncStatus}</span>
         </div>
-        <div className="flex items-center justify-between mt-2">
-          <span className="text-gray-500">版本</span>
-          <span className="text-sm text-gray-600">1.1.0</span>
-        </div>
+        <button
+          onClick={() => void checkForUpdates()}
+          className="mt-2 flex min-h-12 w-full items-center justify-between rounded-xl text-left active:bg-slate-50"
+        >
+          <span>
+            <span className="block text-gray-500">版本</span>
+            <span className="block text-xs text-slate-400">点击检查更新</span>
+          </span>
+          <span className="flex items-center gap-1 text-sm text-gray-600">
+            v{APP_VERSION}
+            <ChevronRight size={16} className="text-gray-400" />
+          </span>
+        </button>
       </div>
 
       {showLedgers && <LedgerManager onClose={() => setShowLedgers(false)} />}
