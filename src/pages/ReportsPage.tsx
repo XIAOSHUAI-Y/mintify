@@ -43,17 +43,19 @@ export default function ReportsPage() {
         </div>
       </header>
 
-      <section className="mb-4 overflow-hidden rounded-[1.5rem] bg-slate-900 p-5 text-white shadow-xl shadow-slate-200">
-        <div className="text-xs text-white/60">{selectedYear} 年结余</div>
-        <div className="mt-1 text-3xl font-bold tracking-tight">{formatMoney(summary.balance)}</div>
+      <section className="mb-4 overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-5 shadow-[0_14px_34px_rgba(245,158,11,0.10)]">
+        <div className="text-xs font-medium text-amber-800/70">{selectedYear} 年结余</div>
+        <div className={`mt-1 text-3xl font-bold tracking-tight ${summary.balance >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
+          {formatMoney(summary.balance)}
+        </div>
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl bg-white/10 px-3 py-2.5">
-            <div className="text-xs text-white/50">总收入</div>
-            <div className="mt-0.5 font-semibold text-emerald-300">{formatMoney(summary.income)}</div>
+          <div className="rounded-2xl border border-emerald-100 bg-white/80 px-3 py-2.5 shadow-sm">
+            <div className="text-xs text-slate-500">总收入</div>
+            <div className="mt-0.5 font-semibold text-emerald-600">{formatMoney(summary.income)}</div>
           </div>
-          <div className="rounded-2xl bg-white/10 px-3 py-2.5">
-            <div className="text-xs text-white/50">总支出</div>
-            <div className="mt-0.5 font-semibold text-rose-300">{formatMoney(summary.expense)}</div>
+          <div className="rounded-2xl border border-rose-100 bg-white/80 px-3 py-2.5 shadow-sm">
+            <div className="text-xs text-slate-500">总支出</div>
+            <div className="mt-0.5 font-semibold text-rose-500">{formatMoney(summary.expense)}</div>
           </div>
         </div>
       </section>
