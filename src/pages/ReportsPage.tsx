@@ -4,10 +4,11 @@ import { useApp } from '../context/AppContext';
 import MonthlyPieChart from '../components/charts/MonthlyPieChart';
 import TrendChart from '../components/charts/TrendChart';
 import AnnualSummary from '../components/charts/AnnualSummary';
+import BudgetUsageChart from '../components/charts/BudgetUsageChart';
 import { formatMoney } from '../utils/helpers';
 
 export default function ReportsPage() {
-  const { currentLedger, transactions, categories } = useApp();
+  const { currentLedger, transactions, categories, budgets } = useApp();
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const selectedMonth = new Date().getMonth();
 
@@ -69,6 +70,16 @@ export default function ReportsPage() {
       />
 
       <TrendChart transactions={yearlyTransactions} year={selectedYear} />
+
+      {currentLedger && (
+        <BudgetUsageChart
+          budgets={budgets}
+          transactions={transactions}
+          categories={categories}
+          ledgerId={currentLedger.id}
+          year={selectedYear}
+        />
+      )}
 
       <AnnualSummary transactions={yearlyTransactions} year={selectedYear} />
     </div>

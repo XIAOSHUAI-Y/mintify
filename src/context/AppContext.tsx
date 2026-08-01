@@ -7,6 +7,7 @@ import {
   deleteLedger,
   deleteRecurringRule,
   deleteTransaction,
+  ensureMonthlyBudgets,
   generateRecurringTransactions,
   getBudgets,
   getDefaultLedger,
@@ -75,6 +76,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // PWA 不能保证在每月 1 日凌晨被系统唤醒，启动时补齐可确保跨月后首次打开就完成继承。
+    await ensureMonthlyBudgets(currentLedger.id);
+
     const [categories, transactions, budgets, recurringRules] = await Promise.all([
       getCategoriesByLedger(currentLedger.id),
       getTransactions(currentLedger.id),
@@ -95,6 +99,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refresh();
+  }, []);
+
+  useEffect(() => {
+    let timerId: number | undefined;
+
+    const scheduleMonthBoundaryRefresh = () => {
+      const now = new Date();
+      const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+      // 浏览器超长定时器存在上限，每天重新校准一次可避免月底任务提前触发。
+      const delay = Math.min(nextMonth - now.getTime() + 500, 24 * 60 * 60 * 1000);
+      timerId = window.setTimeout(async () => {
+        if (Date.now() >= nextMonth) await refresh();
+        scheduleMonthBoundaryRefresh();
+      }, delay);
+    };
+
+    const handleVisibilityChange = () => {
+      // iOS 会暂停后台 PWA，恢复到前台时立即补做跨月继承。
+      if (document.visibilityState === 'visible') void refresh();
+    };
+
+    scheduleMonthBoundaryRefresh();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      if (timerId !== undefined) window.clearTimeout(timerId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const updateStateItem = <T extends { id: string }>(
