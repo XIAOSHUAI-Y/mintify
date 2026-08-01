@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import TransactionForm from './components/TransactionForm';
+import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 
 export type TabType = 'home' | 'reports' | 'settings';
 
@@ -32,7 +33,9 @@ function App() {
         <TransactionForm onClose={() => setShowForm(false)} />
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-2 py-2 z-40">
+      <PwaUpdatePrompt />
+
+      <div className="safe-bottom fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-2 py-2 z-40">
         <div className="max-w-[430px] mx-auto flex items-center justify-around relative">
           <button
             onClick={() => setActiveTab('home')}

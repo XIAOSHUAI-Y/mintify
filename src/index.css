@@ -11,6 +11,11 @@
 body {
   margin: 0;
   background-color: #f3f4f6;
+  overscroll-behavior: none;
+}
+
+.safe-bottom {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 
 #root {

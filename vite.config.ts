@@ -8,8 +8,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       manifest: {
+        id: '/mintify/',
         name: 'Mintify 记账',
         short_name: 'Mintify',
         description: '一款简洁好用的记账工具',
@@ -17,6 +18,9 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         start_url: './',
+        scope: './',
+        orientation: 'portrait',
+        categories: ['finance', 'productivity'],
         icons: [
           {
             src: './icon-192x192.png',
@@ -32,6 +36,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        cleanupOutdatedCaches: true,
       },
     }),
   ],

@@ -1,18 +1,24 @@
-import type { Budget, Category, Ledger, RecurringRule, Transaction } from '../types';
+import type { AppSettings, Budget, Category, Ledger, RecurringRule, Transaction } from '../types';
 import {
+  DEFAULT_APP_SETTINGS,
   deleteItem,
   getAll,
+  getAppSettings,
   getBudgetsByLedger,
   getCategoriesByLedger,
+  getDB,
   getRecurringRulesByLedger,
   getTransactionsByLedger,
   putItem,
+  migrateLegacySettings,
+  saveAppSettings,
 } from './index';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../data/seed';
 import { generateId, getDayEnd, getDayStart, getMonthEnd, getMonthStart } from '../utils/helpers';
 
 // Bootstrap
 export async function bootstrapIfNeeded(): Promise<void> {
+  await migrateLegacySettings();
   const ledgers = await getAll<Ledger>('ledgers');
   if (ledgers.length === 0) {
     const ledger: Ledger = {
@@ -244,22 +250,188 @@ export function calculateBudgetSpent(
     .reduce((sum, t) => sum + t.amount, 0);
 }
 
-export async function exportData(): Promise<string> {
-  const data = {
-    ledgers: await getAll<Ledger>('ledgers'),
-    categories: await getAll<Category>('categories'),
-    transactions: await getAll<Transaction>('transactions'),
-    budgets: await getAll<Budget>('budgets'),
-    recurringRules: await getAll<RecurringRule>('recurringRules'),
-  };
-  return JSON.stringify(data, null, 2);
+const BACKUP_SCHEMA_VERSION = 2;
+
+interface BackupData {
+  ledgers: Ledger[];
+  categories: Category[];
+  transactions: Transaction[];
+  budgets: Budget[];
+  recurringRules: RecurringRule[];
+  settings: AppSettings[];
 }
 
-export async function importData(json: string): Promise<void> {
-  const data = JSON.parse(json);
-  for (const item of data.ledgers || []) await putItem('ledgers', item);
-  for (const item of data.categories || []) await putItem('categories', item);
-  for (const item of data.transactions || []) await putItem('transactions', item);
-  for (const item of data.budgets || []) await putItem('budgets', item);
-  for (const item of data.recurringRules || []) await putItem('recurringRules', item);
+interface MintifyBackup {
+  schemaVersion: number;
+  exportedAt: number;
+  appVersion: string;
+  data: BackupData;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasString(record: Record<string, unknown>, key: string): boolean {
+  return typeof record[key] === 'string' && record[key] !== '';
+}
+
+function hasNumber(record: Record<string, unknown>, key: string): boolean {
+  return typeof record[key] === 'number' && Number.isFinite(record[key]);
+}
+
+function validateRecords<T>(
+  value: unknown,
+  label: string,
+  validator: (record: Record<string, unknown>) => boolean,
+): T[] {
+  if (!Array.isArray(value) || !value.every((item) => isRecord(item) && validator(item))) {
+    throw new Error(`备份文件中的${label}格式不正确`);
+  }
+  return value as T[];
+}
+
+function parseBackup(json: string): BackupData {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json) as unknown;
+  } catch {
+    throw new Error('备份文件不是有效的 JSON');
+  }
+  if (!isRecord(parsed)) throw new Error('备份文件缺少数据对象');
+
+  let rawData: Record<string, unknown>;
+  if ('schemaVersion' in parsed) {
+    if (parsed.schemaVersion !== BACKUP_SCHEMA_VERSION) {
+      throw new Error(`备份文件版本不受支持：${String(parsed.schemaVersion)}`);
+    }
+    if (!isRecord(parsed.data)) throw new Error('备份文件缺少 data 字段');
+    rawData = parsed.data;
+  } else {
+    // 兼容旧版直接以各数据数组作为根节点的备份格式。
+    rawData = parsed;
+  }
+
+  const ledgers = validateRecords<Ledger>(rawData.ledgers, '账本', (item) =>
+    hasString(item, 'id') && hasString(item, 'name') && hasNumber(item, 'createdAt'));
+  const categories = validateRecords<Category>(rawData.categories, '分类', (item) =>
+    hasString(item, 'id') && hasString(item, 'ledgerId') && hasString(item, 'name'));
+  const transactions = validateRecords<Transaction>(rawData.transactions, '交易', (item) =>
+    hasString(item, 'id')
+    && hasString(item, 'ledgerId')
+    && hasString(item, 'categoryId')
+    && hasNumber(item, 'amount')
+    && hasNumber(item, 'occurredAt')
+    && hasNumber(item, 'createdAt'));
+  const budgets = validateRecords<Budget>(rawData.budgets, '预算', (item) =>
+    hasString(item, 'id') && hasString(item, 'ledgerId') && hasNumber(item, 'amount'));
+  const recurringRules = validateRecords<RecurringRule>(rawData.recurringRules, '周期规则', (item) =>
+    hasString(item, 'id')
+    && hasString(item, 'ledgerId')
+    && hasString(item, 'categoryId')
+    && hasNumber(item, 'amount'));
+  const settings = rawData.settings === undefined
+    ? [{ ...DEFAULT_APP_SETTINGS }]
+    : validateRecords<AppSettings>(rawData.settings, '设置', (item) =>
+      item.id === DEFAULT_APP_SETTINGS.id
+      && typeof item.reminderEnabled === 'boolean'
+      && hasString(item, 'reminderTime')
+      && Array.isArray(item.presetTags)
+      && item.presetTags.every((tag) => typeof tag === 'string'));
+
+  return { ledgers, categories, transactions, budgets, recurringRules, settings };
+}
+
+export interface ImportOptions {
+  mode: 'merge' | 'replace';
+}
+
+export interface ImportResult {
+  ledgers: number;
+  categories: number;
+  transactions: number;
+  budgets: number;
+  recurringRules: number;
+}
+
+export interface BackupPreview extends ImportResult {
+  schemaVersion: number;
+  exportedAt?: number;
+}
+
+export function inspectBackup(json: string): BackupPreview {
+  const data = parseBackup(json);
+  const parsed = JSON.parse(json) as Record<string, unknown>;
+  const preview: BackupPreview = {
+    schemaVersion: typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : 1,
+    ledgers: data.ledgers.length,
+    categories: data.categories.length,
+    transactions: data.transactions.length,
+    budgets: data.budgets.length,
+    recurringRules: data.recurringRules.length,
+  };
+  if (typeof parsed.exportedAt === 'number') preview.exportedAt = parsed.exportedAt;
+  return preview;
+}
+
+export async function exportData(): Promise<string> {
+  const exportedAt = Date.now();
+  const settings = { ...(await getAppSettings()), lastBackupAt: exportedAt };
+  await saveAppSettings(settings);
+
+  const backup: MintifyBackup = {
+    schemaVersion: BACKUP_SCHEMA_VERSION,
+    exportedAt,
+    appVersion: '1.1.0',
+    data: {
+      ledgers: await getAll<Ledger>('ledgers'),
+      categories: await getAll<Category>('categories'),
+      transactions: await getAll<Transaction>('transactions'),
+      budgets: await getAll<Budget>('budgets'),
+      recurringRules: await getAll<RecurringRule>('recurringRules'),
+      settings: [settings],
+    },
+  };
+  return JSON.stringify(backup, null, 2);
+}
+
+export async function importData(
+  json: string,
+  options: ImportOptions = { mode: 'merge' },
+): Promise<ImportResult> {
+  const data = parseBackup(json);
+
+  const db = await getDB();
+  const storeNames = [
+    'ledgers',
+    'categories',
+    'transactions',
+    'budgets',
+    'recurringRules',
+    'settings',
+  ] as const;
+  const transaction = db.transaction(storeNames, 'readwrite');
+
+  // 清理和写入必须放在同一个事务中，任何写入失败都会自动回滚覆盖操作。
+  if (options.mode === 'replace') {
+    for (const storeName of storeNames) {
+      await transaction.objectStore(storeName).clear();
+    }
+  }
+
+  for (const item of data.ledgers) await transaction.objectStore('ledgers').put(item);
+  for (const item of data.categories) await transaction.objectStore('categories').put(item);
+  for (const item of data.transactions) await transaction.objectStore('transactions').put(item);
+  for (const item of data.budgets) await transaction.objectStore('budgets').put(item);
+  for (const item of data.recurringRules) await transaction.objectStore('recurringRules').put(item);
+  for (const item of data.settings) await transaction.objectStore('settings').put(item);
+  await transaction.done;
+
+  return {
+    ledgers: data.ledgers.length,
+    categories: data.categories.length,
+    transactions: data.transactions.length,
+    budgets: data.budgets.length,
+    recurringRules: data.recurringRules.length,
+  };
 }
