@@ -1,11 +1,28 @@
 import { useEffect, useState } from 'react';
-import { ChevronRight, Download, Upload, Bell, BookOpen, Tag, RefreshCw } from 'lucide-react';
+import { ChevronRight, Download, Upload, Bell, BookOpen, Tag, RefreshCw, HardDrive } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
-import { PRESET_TAGS } from '../data/seed';
-import { exportData, importData } from '../db/operations';
+import {
+  exportData,
+  importData,
+  inspectBackup,
+  type BackupPreview,
+  type ImportOptions,
+} from '../db/operations';
+import { DEFAULT_APP_SETTINGS, getAppSettings, saveAppSettings } from '../db';
+import {
+  getStorageStatus,
+  requestPersistentStorage,
+  type StorageStatus,
+} from '../storage/persistence';
 import { generateId } from '../utils/helpers';
-import type { Ledger } from '../types';
+import type { AppSettings, Ledger } from '../types';
+
+interface PendingImport {
+  fileName: string;
+  text: string;
+  preview: BackupPreview;
+}
 
 export default function SettingsPage() {
   const {
@@ -16,16 +33,23 @@ export default function SettingsPage() {
 
   const [showLedgers, setShowLedgers] = useState(false);
   const [showTags, setShowTags] = useState(false);
-  const [reminderEnabled, setReminderEnabled] = useState(false);
-  const [reminderTime, setReminderTime] = useState('21:00');
+  const [settings, setSettings] = useState<AppSettings>({
+    ...DEFAULT_APP_SETTINGS,
+    presetTags: [...DEFAULT_APP_SETTINGS.presetTags],
+  });
+  const [storageStatus, setStorageStatus] = useState<StorageStatus>({
+    supported: false,
+    persisted: false,
+  });
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const syncStatus = '本地模式';
 
   useEffect(() => {
-    const enabled = localStorage.getItem('reminderEnabled') === 'true';
-    const time = localStorage.getItem('reminderTime') || '21:00';
-    setReminderEnabled(enabled);
-    setReminderTime(time);
-    if (enabled) scheduleReminder(time);
+    void Promise.all([getAppSettings(), getStorageStatus()]).then(([savedSettings, status]) => {
+      setSettings(savedSettings);
+      setStorageStatus(status);
+    });
   }, []);
 
   const scheduleReminder = (_time: string) => {
@@ -40,36 +64,68 @@ export default function SettingsPage() {
     });
   };
 
-  const handleReminderToggle = (enabled: boolean) => {
-    setReminderEnabled(enabled);
-    localStorage.setItem('reminderEnabled', String(enabled));
-    if (enabled) scheduleReminder(reminderTime);
+  const updateSettings = async (patch: Partial<AppSettings>) => {
+    const next = { ...settings, ...patch };
+    setSettings(next);
+    await saveAppSettings(next);
   };
 
-  const handleReminderTimeChange = (time: string) => {
-    setReminderTime(time);
-    localStorage.setItem('reminderTime', time);
-    if (reminderEnabled) scheduleReminder(time);
+  const handleReminderToggle = async (enabled: boolean) => {
+    await updateSettings({ reminderEnabled: enabled });
+    if (enabled) scheduleReminder(settings.reminderTime);
+  };
+
+  const handleReminderTimeChange = async (time: string) => {
+    await updateSettings({ reminderTime: time });
   };
 
   const handleExport = async () => {
     const data = await exportData();
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const fileName = `mintify-backup-${new Date().toISOString().split('T')[0]}.json`;
+    const file = new File([data], fileName, { type: 'application/json' });
+    setSettings(await getAppSettings());
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ title: 'Mintify 数据备份', files: [file] });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        // 分享失败时回退为浏览器下载，保证备份仍然可用。
+      }
+    }
+
+    const url = URL.createObjectURL(file);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `mintify-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    if (confirm('导入会覆盖现有数据，确定继续吗？')) {
-      await importData(text);
+    try {
+      const text = await file.text();
+      setPendingImport({ fileName: file.name, text, preview: inspectBackup(text) });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '无法读取备份文件');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleImport = async (mode: ImportOptions['mode']) => {
+    if (!pendingImport) return;
+    setIsImporting(true);
+    try {
+      const result = await importData(pendingImport.text, { mode });
+      alert(`恢复完成：${result.ledgers} 个账本，${result.transactions} 条交易`);
       window.location.reload();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '恢复失败，原数据未改变');
+      setIsImporting(false);
     }
   };
 
@@ -129,21 +185,46 @@ export default function SettingsPage() {
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
-                checked={reminderEnabled}
-                onChange={(e) => handleReminderToggle(e.target.checked)}
+                checked={settings.reminderEnabled}
+                onChange={(e) => void handleReminderToggle(e.target.checked)}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
             </label>
           </div>
-          {reminderEnabled && (
+          {settings.reminderEnabled && (
             <input
               type="time"
-              value={reminderTime}
-              onChange={(e) => handleReminderTimeChange(e.target.value)}
+              value={settings.reminderTime}
+              onChange={(e) => void handleReminderTimeChange(e.target.value)}
               className="w-full p-2 border border-gray-200 rounded-lg"
             />
           )}
+        </div>
+      </div>
+
+      <div className="mt-6 bg-white rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <HardDrive size={20} className="text-yellow-600 mt-0.5" />
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">本地数据保护</span>
+              <span className={`text-sm ${storageStatus.persisted ? 'text-green-600' : 'text-orange-500'}`}>
+                {storageStatus.persisted ? '持久化已启用' : '普通存储'}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              已使用 {formatBytes(storageStatus.usage)} / {formatBytes(storageStatus.quota)}
+            </div>
+            {!storageStatus.persisted && storageStatus.supported && (
+              <button
+                onClick={async () => setStorageStatus(await requestPersistentStorage())}
+                className="mt-3 text-sm px-3 py-2 bg-primary rounded-lg"
+              >
+                请求持久化存储
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -151,7 +232,9 @@ export default function SettingsPage() {
         <SettingsItem
           icon={<Download size={20} />}
           title="导出数据"
-          subtitle="备份到本地文件"
+          subtitle={settings.lastBackupAt
+            ? `最近备份：${new Date(settings.lastBackupAt).toLocaleDateString()}`
+            : '尚未备份，建议立即导出'}
           onClick={handleExport}
         />
         <label className="flex items-center justify-between p-4 bg-white rounded-xl active:bg-gray-50 cursor-pointer">
@@ -162,7 +245,7 @@ export default function SettingsPage() {
               <div className="text-sm text-gray-500">从备份文件恢复</div>
             </div>
           </div>
-          <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+          <input type="file" accept=".json,application/json" className="hidden" onChange={handleImportFile} />
           <ChevronRight size={20} className="text-gray-400" />
         </label>
       </div>
@@ -174,14 +257,60 @@ export default function SettingsPage() {
         </div>
         <div className="flex items-center justify-between mt-2">
           <span className="text-gray-500">版本</span>
-          <span className="text-sm text-gray-600">1.0.0</span>
+          <span className="text-sm text-gray-600">1.1.0</span>
         </div>
       </div>
 
       {showLedgers && <LedgerManager onClose={() => setShowLedgers(false)} />}
       {showTags && <TagManager onClose={() => setShowTags(false)} />}
+      {pendingImport && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
+            <div className="font-semibold text-center">确认恢复备份</div>
+            <div className="text-sm text-gray-500 mt-2 break-all text-center">{pendingImport.fileName}</div>
+            <div className="mt-4 p-3 bg-gray-50 rounded-xl text-sm space-y-1">
+              <div>账本：{pendingImport.preview.ledgers} 个</div>
+              <div>交易：{pendingImport.preview.transactions} 条</div>
+              <div>分类：{pendingImport.preview.categories} 个</div>
+            </div>
+            <div className="text-xs text-orange-600 mt-3">
+              覆盖恢复会先清除当前数据；操作在同一事务中完成，失败时自动回滚。
+            </div>
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <button
+                disabled={isImporting}
+                onClick={() => void handleImport('merge')}
+                className="py-3 bg-gray-100 rounded-xl disabled:opacity-50"
+              >
+                合并导入
+              </button>
+              <button
+                disabled={isImporting}
+                onClick={() => void handleImport('replace')}
+                className="py-3 bg-primary rounded-xl font-medium disabled:opacity-50"
+              >
+                覆盖恢复
+              </button>
+            </div>
+            <button
+              disabled={isImporting}
+              onClick={() => setPendingImport(null)}
+              className="w-full mt-2 py-2 text-gray-500 disabled:opacity-50"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function formatBytes(value?: number): string {
+  if (value === undefined) return '--';
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 ** 2).toFixed(1)} MB`;
 }
 
 function SettingsItem({
@@ -323,25 +452,27 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
 }
 
 function TagManager({ onClose }: { onClose: () => void }) {
-  const [tags, setTags] = useState<string[]>(() => {
-    const saved = localStorage.getItem('presetTags');
-    return saved ? JSON.parse(saved) : PRESET_TAGS;
-  });
+  const [tags, setTags] = useState<string[]>([...DEFAULT_APP_SETTINGS.presetTags]);
   const [newTag, setNewTag] = useState('');
 
-  const saveTags = (updated: string[]) => {
+  useEffect(() => {
+    void getAppSettings().then((saved) => setTags(saved.presetTags));
+  }, []);
+
+  const saveTags = async (updated: string[]) => {
     setTags(updated);
-    localStorage.setItem('presetTags', JSON.stringify(updated));
+    const saved = await getAppSettings();
+    await saveAppSettings({ ...saved, presetTags: updated });
   };
 
-  const addTag = () => {
+  const addTag = async () => {
     if (!newTag || tags.includes(newTag)) return;
-    saveTags([...tags, newTag]);
+    await saveTags([...tags, newTag]);
     setNewTag('');
   };
 
-  const removeTag = (tag: string) => {
-    saveTags(tags.filter((t) => t !== tag));
+  const removeTag = async (tag: string) => {
+    await saveTags(tags.filter((t) => t !== tag));
   };
 
   return (
@@ -361,7 +492,7 @@ function TagManager({ onClose }: { onClose: () => void }) {
             placeholder="新标签"
             className="flex-1 p-3 border border-gray-200 rounded-lg"
           />
-          <button onClick={addTag} className="px-4 py-2 bg-primary rounded-lg font-medium">添加</button>
+          <button onClick={() => void addTag()} className="px-4 py-2 bg-primary rounded-lg font-medium">添加</button>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -371,7 +502,7 @@ function TagManager({ onClose }: { onClose: () => void }) {
               className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 rounded-full text-sm"
             >
               {tag}
-              <button onClick={() => removeTag(tag)} className="text-gray-400 hover:text-red-500">×</button>
+              <button onClick={() => void removeTag(tag)} className="text-gray-400 hover:text-red-500">×</button>
             </div>
           ))}
         </div>

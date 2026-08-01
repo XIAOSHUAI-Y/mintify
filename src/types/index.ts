@@ -62,3 +62,15 @@ export interface RecurringRule {
   lastGeneratedDate?: number;
   createdAt: number;
 }
+
+/**
+ * 单例应用设置。统一放入 IndexedDB，确保设置能随账本一起备份和恢复。
+ */
+export interface AppSettings {
+  id: 'app-settings';
+  reminderEnabled: boolean;
+  reminderTime: string;
+  presetTags: string[];
+  legacySettingsMigrated: boolean;
+  lastBackupAt?: number;
+}
