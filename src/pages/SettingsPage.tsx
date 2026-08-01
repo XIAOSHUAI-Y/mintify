@@ -130,28 +130,32 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen p-4 pb-24 overflow-y-auto">
-      <div className="text-lg font-bold mb-6">我的</div>
+    <div className="min-h-screen bg-slate-50 px-4 pb-28">
+      <header className="safe-top mb-4">
+        <h1 className="text-2xl font-bold tracking-tight">我的</h1>
+        <p className="mt-1 text-sm text-slate-500">管理账本、自动化与本地数据</p>
+      </header>
 
       {/* Current Ledger */}
       {currentLedger && (
-        <div className="bg-primary/10 rounded-2xl p-4 mb-6">
+        <div className="mb-6 overflow-hidden rounded-[1.5rem] bg-gradient-to-br from-amber-300 to-primary p-5 shadow-[0_14px_32px_rgba(250,204,21,0.2)]">
           <div className="flex items-center gap-3">
             <div
-              className="w-12 h-12 rounded-full flex items-center justify-center text-white"
+              className="flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-sm"
               style={{ backgroundColor: currentLedger.color }}
             >
               <Icon name={currentLedger.icon} size={24} />
             </div>
             <div className="flex-1">
-              <div className="font-medium">{currentLedger.name}</div>
-              <div className="text-sm text-gray-500">{ledgers.length} 个账本</div>
+              <div className="font-semibold">{currentLedger.name}</div>
+              <div className="text-sm text-black/50">当前账本 · 共 {ledgers.length} 个</div>
             </div>
           </div>
         </div>
       )}
 
-      <div className="space-y-3">
+      <SectionTitle>账本与自动化</SectionTitle>
+      <div className="surface-card divide-y divide-slate-100 overflow-hidden">
         <SettingsItem
           icon={<BookOpen size={20} />}
           title="账本管理"
@@ -175,8 +179,9 @@ export default function SettingsPage() {
         />
       </div>
 
-      <div className="mt-6 space-y-3">
-        <div className="bg-white rounded-xl p-4">
+      <SectionTitle className="mt-6">提醒</SectionTitle>
+      <div className="surface-card overflow-hidden">
+        <div className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <Bell size={20} className="text-yellow-600" />
@@ -203,13 +208,14 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="mt-6 bg-white rounded-xl p-4">
+      <SectionTitle className="mt-6">数据与安全</SectionTitle>
+      <div className="surface-card p-4">
         <div className="flex items-start gap-3">
           <HardDrive size={20} className="text-yellow-600 mt-0.5" />
           <div className="flex-1">
             <div className="flex items-center justify-between">
               <span className="font-medium">本地数据保护</span>
-              <span className={`text-sm ${storageStatus.persisted ? 'text-green-600' : 'text-orange-500'}`}>
+              <span className={`rounded-full px-2 py-1 text-xs font-medium ${storageStatus.persisted ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-600'}`}>
                 {storageStatus.persisted ? '持久化已启用' : '普通存储'}
               </span>
             </div>
@@ -219,7 +225,7 @@ export default function SettingsPage() {
             {!storageStatus.persisted && storageStatus.supported && (
               <button
                 onClick={async () => setStorageStatus(await requestPersistentStorage())}
-                className="mt-3 text-sm px-3 py-2 bg-primary rounded-lg"
+                className="mt-3 min-h-10 rounded-xl border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-800"
               >
                 请求持久化存储
               </button>
@@ -228,7 +234,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="mt-6 space-y-3">
+      <div className="surface-card mt-3 divide-y divide-slate-100 overflow-hidden">
         <SettingsItem
           icon={<Download size={20} />}
           title="导出数据"
@@ -237,7 +243,7 @@ export default function SettingsPage() {
             : '尚未备份，建议立即导出'}
           onClick={handleExport}
         />
-        <label className="flex items-center justify-between p-4 bg-white rounded-xl active:bg-gray-50 cursor-pointer">
+        <label className="flex min-h-16 cursor-pointer items-center justify-between p-4 active:bg-slate-50">
           <div className="flex items-center gap-3">
             <Upload size={20} className="text-yellow-600" />
             <div>
@@ -250,7 +256,8 @@ export default function SettingsPage() {
         </label>
       </div>
 
-      <div className="mt-6 p-4 bg-white rounded-xl">
+      <SectionTitle className="mt-6">关于</SectionTitle>
+      <div className="surface-card p-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-gray-500">同步状态</span>
           <span className="text-sm text-gray-600">{syncStatus}</span>
@@ -327,7 +334,7 @@ function SettingsItem({
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between p-4 bg-white rounded-xl active:bg-gray-50"
+      className="flex min-h-16 w-full items-center justify-between p-4 active:bg-slate-50"
     >
       <div className="flex items-center gap-3">
         <div className="text-yellow-600">{icon}</div>
@@ -339,6 +346,10 @@ function SettingsItem({
       <ChevronRight size={20} className="text-gray-400" />
     </button>
   );
+}
+
+function SectionTitle({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <div className={`mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-slate-400 ${className}`}>{children}</div>;
 }
 
 function LedgerManager({ onClose }: { onClose: () => void }) {
@@ -368,20 +379,20 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <button onClick={onClose}>返回</button>
-        <div className="font-medium">账本管理</div>
-        <button onClick={() => setShowAdd(true)}>新增</button>
+    <div className="mobile-overlay">
+      <div className="mobile-toolbar">
+        <button onClick={onClose} className="min-h-11 rounded-full px-2 text-sm text-slate-600">返回</button>
+        <div className="font-semibold">账本管理</div>
+        <button onClick={() => setShowAdd(true)} className="min-h-11 rounded-full px-2 text-sm font-semibold text-amber-700">新增</button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 pb-8">
         <div className="space-y-3">
           {ledgers.map((ledger) => (
             <div
               key={ledger.id}
-              className={`flex items-center gap-3 p-4 rounded-xl border ${
-                currentLedger?.id === ledger.id ? 'border-primary bg-primary/5' : 'border-gray-100'
+              className={`surface-card flex items-center gap-3 p-4 ${
+                currentLedger?.id === ledger.id ? '!border-primary bg-primary/5' : ''
               }`}
             >
               <div
@@ -476,10 +487,10 @@ function TagManager({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <button onClick={onClose}>返回</button>
-        <div className="font-medium">标签管理</div>
+    <div className="mobile-overlay">
+      <div className="mobile-toolbar">
+        <button onClick={onClose} className="min-h-11 rounded-full px-2 text-sm text-slate-600">返回</button>
+        <div className="font-semibold">标签管理</div>
         <div />
       </div>
 
@@ -490,16 +501,16 @@ function TagManager({ onClose }: { onClose: () => void }) {
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
             placeholder="新标签"
-            className="flex-1 p-3 border border-gray-200 rounded-lg"
+            className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-3 outline-none focus:border-amber-400"
           />
-          <button onClick={() => void addTag()} className="px-4 py-2 bg-primary rounded-lg font-medium">添加</button>
+          <button onClick={() => void addTag()} className="min-h-11 rounded-xl bg-primary px-4 font-medium">添加</button>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {tags.map((tag) => (
             <div
               key={tag}
-              className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 rounded-full text-sm"
+              className="flex min-h-10 items-center gap-1 rounded-full bg-white px-3 text-sm ring-1 ring-slate-200"
             >
               {tag}
               <button onClick={() => void removeTag(tag)} className="text-gray-400 hover:text-red-500">×</button>

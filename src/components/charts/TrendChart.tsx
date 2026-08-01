@@ -27,24 +27,24 @@ export default function TrendChart({ transactions, year }: TrendChartProps) {
 
   if (!hasData) {
     return (
-      <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-        <div className="font-medium mb-4">月度收支趋势</div>
-        <div className="h-48 flex items-center justify-center text-gray-400">暂无数据</div>
+      <div className="surface-card mb-4 p-4">
+        <div className="mb-4 font-semibold">月度收支趋势</div>
+        <div className="flex h-40 items-center justify-center text-sm text-slate-400">暂无数据</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-      <div className="font-medium mb-4">月度收支趋势</div>
-      <div className="h-64">
+    <div className="surface-card mb-4 p-4">
+      <div className="mb-4 font-semibold">月度收支趋势</div>
+      <div className="h-60">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+          <BarChart data={data} margin={{ top: 8, right: 2, left: -24, bottom: 0 }} barGap={1}>
+            <XAxis dataKey="month" axisLine={false} tickLine={false} interval={1} tick={{ fontSize: 11, fill: '#94A3B8' }} />
+            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#94A3B8' }} width={52} />
             <Legend />
-            <Bar dataKey="income" name="收入" fill="#22C55E" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="expense" name="支出" fill="#EF4444" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="income" name="收入" fill="#10B981" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="expense" name="支出" fill="#FB7185" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

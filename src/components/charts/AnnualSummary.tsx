@@ -25,8 +25,8 @@ export default function AnnualSummary({ transactions, year }: AnnualSummaryProps
   }, [transactions]);
 
   return (
-    <div className="bg-white rounded-2xl p-4 shadow-sm">
-      <div className="font-medium mb-4">{year}年汇总</div>
+    <div className="surface-card p-4">
+      <div className="mb-4 font-semibold">{year} 年账单概览</div>
 
       <div className="space-y-3">
         <div className="flex justify-between">

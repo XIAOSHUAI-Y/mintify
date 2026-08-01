@@ -36,10 +36,12 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   );
 
   useEffect(() => {
-    if (!editingTransaction && filteredCategories.length > 0 && !selectedCategoryId) {
-      setSelectedCategoryId(filteredCategories[0].id);
+    const categoryStillMatchesType = filteredCategories.some((category) => category.id === selectedCategoryId);
+    // 切换收支类型时必须同步切换分类，避免保存出“收入 + 支出分类”的脏数据。
+    if (!categoryStillMatchesType) {
+      setSelectedCategoryId(filteredCategories[0]?.id || '');
     }
-  }, [filteredCategories, editingTransaction, selectedCategoryId]);
+  }, [filteredCategories, selectedCategoryId]);
 
   const handleNumber = (num: string) => {
     if (num === '.') {
@@ -105,14 +107,13 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   };
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <button onClick={onClose} className="text-gray-600">取消</button>
-        <div className="font-medium">{currentLedger?.name || '记账'}</div>
+    <div className="mobile-overlay bg-white">
+      <div className="mobile-toolbar">
+        <button onClick={onClose} className="min-h-11 rounded-full px-2 text-sm text-slate-500 active:bg-slate-100">取消</button>
+        <div className="font-semibold">{editingTransaction ? '编辑账单' : currentLedger?.name || '记账'}</div>
         <button
           onClick={() => handleSave(false)}
-          className="font-medium text-yellow-700 disabled:text-gray-400"
+          className="min-h-11 rounded-full px-2 text-sm font-semibold text-amber-700 disabled:text-slate-300"
           disabled={!amount || !selectedCategoryId}
         >
           保存
@@ -120,21 +121,23 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       </div>
 
       {/* Amount Display */}
-      <div className="px-6 py-6">
-        <div className="text-right text-5xl font-bold truncate">
+      <div className="px-5 pb-5 pt-6">
+        <div className="mb-1 text-right text-xs font-medium text-slate-400">输入金额</div>
+        <div className="truncate text-right text-5xl font-bold tracking-tight">
           ¥{amount || '0.00'}
         </div>
       </div>
 
       {/* Type Selector */}
-      <div className="px-4 mb-4">
-        <div className="flex bg-gray-100 rounded-lg p-1">
+      <div className="mb-3 px-4">
+        <div className="flex rounded-xl bg-slate-100 p-1">
           {(['expense', 'income', 'transfer'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setType(t)}
-              className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
-                type === t ? 'bg-white text-black shadow-sm' : 'text-gray-500'
+              aria-pressed={type === t}
+              className={`min-h-11 flex-1 rounded-lg text-sm font-medium transition-colors ${
+                type === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
               }`}
             >
               {t === 'expense' ? '支出' : t === 'income' ? '收入' : '转账'}
@@ -144,29 +147,29 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       </div>
 
       {/* Meta Fields */}
-      <div className="px-4 mb-4 flex flex-wrap gap-3">
+      <div className="mb-4 flex gap-2 overflow-x-auto px-4 pb-1 hide-scrollbar">
         <button
           onClick={() => setShowDatePicker(true)}
-          className="flex items-center gap-1 px-3 py-2 bg-gray-50 rounded-lg text-sm"
+          className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
         >
           <Calendar size={16} />
           {formatShortDate(occurredAt)}
         </button>
         <button
           onClick={() => setShowTagPicker(true)}
-          className="flex items-center gap-1 px-3 py-2 bg-gray-50 rounded-lg text-sm"
+          className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
         >
           <Tag size={16} />
           {tags.length > 0 ? tags.join(',') : '标签'}
         </button>
         <button
           onClick={() => setShowNoteInput(true)}
-          className="flex items-center gap-1 px-3 py-2 bg-gray-50 rounded-lg text-sm"
+          className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
         >
           <FileText size={16} />
           {note || '备注'}
         </button>
-        <label className="flex items-center gap-1 px-3 py-2 bg-gray-50 rounded-lg text-sm cursor-pointer">
+        <label className="flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm">
           <FileImage size={16} />
           {photo ? '已选图片' : '图片'}
           <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
@@ -180,16 +183,22 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       )}
 
       {/* Category Grid */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
-        <div className="grid grid-cols-4 gap-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-3">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-800">选择分类</div>
+          <div className="text-xs text-slate-400">{filteredCategories.length} 个</div>
+        </div>
+        <div className="grid grid-cols-4 gap-x-3 gap-y-4">
           {filteredCategories.map((category) => (
             <button
               key={category.id}
               onClick={() => setSelectedCategoryId(category.id)}
+              aria-label={`选择${category.name}分类`}
+              aria-pressed={selectedCategoryId === category.id}
               className="flex flex-col items-center gap-2"
             >
               <div
-                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+                className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
                   selectedCategoryId === category.id ? 'text-white' : 'bg-gray-100 text-gray-700'
                 }`}
                 style={{
@@ -205,7 +214,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       </div>
 
       {/* Number Pad */}
-      <div className="bg-gray-50">
+      <div className="safe-bottom border-t border-slate-100 bg-slate-50">
         <div className="grid grid-cols-4">
           {[
             { label: '1', action: () => handleNumber('1') },
@@ -228,8 +237,9 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
             <button
               key={idx}
               onClick={btn.action}
-              className={`h-16 text-lg font-medium active:opacity-70 transition-opacity ${
-                btn.primary ? 'bg-primary text-black' : 'bg-white text-gray-800 border-b border-r border-gray-100'
+              disabled={btn.label === '保存' && (!amount || !selectedCategoryId)}
+              className={`h-14 text-lg font-medium transition-opacity active:opacity-70 disabled:opacity-40 ${
+                btn.primary ? 'bg-primary text-black' : 'border-b border-r border-slate-100 bg-white text-slate-800'
               }`}
             >
               {btn.label}

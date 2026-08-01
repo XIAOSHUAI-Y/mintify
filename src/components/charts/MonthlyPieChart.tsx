@@ -6,9 +6,10 @@ import type { Transaction, Category } from '../../types';
 interface MonthlyPieChartProps {
   transactions: Transaction[];
   categories: Category[];
+  title?: string;
 }
 
-export default function MonthlyPieChart({ transactions, categories }: MonthlyPieChartProps) {
+export default function MonthlyPieChart({ transactions, categories, title = '本月支出构成' }: MonthlyPieChartProps) {
   const data = useMemo(() => {
     const expenses = transactions.filter((t) => t.type === 'expense');
     const grouped: Record<string, { name: string; value: number; color: string }> = {};
@@ -31,26 +32,29 @@ export default function MonthlyPieChart({ transactions, categories }: MonthlyPie
 
   if (data.length === 0) {
     return (
-      <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-        <div className="font-medium mb-4">本月支出构成</div>
-        <div className="h-48 flex items-center justify-center text-gray-400">暂无支出数据</div>
+      <div className="surface-card mb-4 p-4">
+        <div className="mb-4 font-semibold">{title}</div>
+        <div className="flex h-40 flex-col items-center justify-center text-slate-400">
+          <div className="text-sm font-medium">暂无支出数据</div>
+          <div className="mt-1 text-xs">记录支出后会自动生成占比</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-      <div className="font-medium mb-4">本月支出构成</div>
+    <div className="surface-card mb-4 p-4">
+      <div className="mb-2 font-semibold">{title}</div>
 
-      <div className="h-56 relative">
+      <div className="relative h-52">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={data}
               cx="50%"
               cy="50%"
-              innerRadius={60}
-              outerRadius={80}
+              innerRadius={57}
+              outerRadius={78}
               paddingAngle={2}
               dataKey="value"
             >
