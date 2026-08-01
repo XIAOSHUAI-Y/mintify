@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Plus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, Plus, Repeat2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import { generateId, formatMoney, formatShortDate } from '../utils/helpers';
@@ -24,16 +24,21 @@ export default function RecurringPage({ onClose }: RecurringPageProps) {
   const sortedRules = [...recurringRules].sort((a, b) => b.createdAt - a.createdAt);
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <button onClick={onClose} className="text-gray-600"><X size={20} /></button>
-        <div className="font-medium">周期记账</div>
-        <button onClick={() => setShowForm(true)}><Plus size={22} className="text-yellow-700" /></button>
+    <div className="mobile-overlay">
+      <div className="mobile-toolbar">
+        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600"><X size={20} /></button>
+        <div className="font-semibold">周期记账</div>
+        <button aria-label="新增周期记账" onClick={() => setShowForm(true)} className="icon-button"><Plus size={22} className="text-amber-700" /></button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 pb-8">
         {sortedRules.length === 0 ? (
-          <div className="text-center text-gray-400 mt-12">还没有周期记账规则</div>
+          <div className="surface-card mt-8 px-6 py-10 text-center">
+            <Repeat2EmptyState />
+            <div className="mt-4 text-sm font-semibold text-slate-700">还没有周期记账规则</div>
+            <div className="mt-1 text-xs leading-5 text-slate-400">房租、工资等固定账单，设置一次即可按期生成</div>
+            <button onClick={() => setShowForm(true)} className="mt-5 rounded-xl bg-primary px-5 py-3 text-sm font-semibold">创建第一条规则</button>
+          </div>
         ) : (
           <div className="space-y-3">
             {sortedRules.map((rule) => {
@@ -102,6 +107,14 @@ export default function RecurringPage({ onClose }: RecurringPageProps) {
   );
 }
 
+function Repeat2EmptyState() {
+  return (
+    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+      <Repeat2 size={26} />
+    </div>
+  );
+}
+
 function RecurringForm({
   rule,
   categories,
@@ -131,6 +144,14 @@ function RecurringForm({
   const [note, setNote] = useState(rule?.note || '');
 
   const filteredCategories = categories.filter((c) => c.type === type);
+
+  useEffect(() => {
+    const categoryStillMatchesType = filteredCategories.some((category) => category.id === categoryId);
+    // 周期账单切换收支类型时同样要清理旧分类，保证规则本身的数据一致。
+    if (!categoryStillMatchesType) {
+      setCategoryId(filteredCategories[0]?.id || '');
+    }
+  }, [categoryId, filteredCategories]);
 
   const handleSave = () => {
     if (!currentLedger || !amount || isNaN(Number(amount)) || !categoryId) return;

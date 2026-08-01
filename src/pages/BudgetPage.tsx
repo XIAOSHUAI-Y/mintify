@@ -18,13 +18,13 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
   const currentMonth = getYearMonth(Date.now());
 
   const overallBudget = useMemo(
-    () => budgets.find((b) => b.includeOverall && b.yearMonth === currentMonth),
-    [budgets, currentMonth]
+    () => budgets.find((b) => b.ledgerId === currentLedger?.id && b.includeOverall && b.yearMonth === currentMonth),
+    [budgets, currentLedger?.id, currentMonth]
   );
 
   const categoryBudgets = useMemo(
-    () => budgets.filter((b) => !b.includeOverall && b.yearMonth === currentMonth),
-    [budgets, currentMonth]
+    () => budgets.filter((b) => b.ledgerId === currentLedger?.id && !b.includeOverall && b.yearMonth === currentMonth),
+    [budgets, currentLedger?.id, currentMonth]
   );
 
   const calculateSpent = (budget: Budget) => {
@@ -37,6 +37,7 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
     return transactions
       .filter((t) => {
         if (t.type !== 'expense') return false;
+        if (t.ledgerId !== currentLedger.id) return false;
         if (t.occurredAt < start.getTime() || t.occurredAt > end.getTime()) return false;
         if (budget.includeOverall) return true;
         return t.categoryId === budget.categoryId;
@@ -45,15 +46,15 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <button onClick={onClose} className="text-gray-600"><X size={20} /></button>
-        <div className="font-medium">预算管理</div>
-        <button onClick={() => setShowForm(true)}><Plus size={22} className="text-yellow-700" /></button>
+    <div className="mobile-overlay">
+      <div className="mobile-toolbar">
+        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600"><X size={20} /></button>
+        <div className="font-semibold">预算管理</div>
+        <button aria-label="新增预算" onClick={() => setShowForm(true)} className="icon-button"><Plus size={22} className="text-amber-700" /></button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        <div className="text-sm text-gray-500 mb-3">{currentMonth.replace('-', '年')}月</div>
+      <div className="flex-1 overflow-y-auto p-4 pb-8">
+        <div className="mb-4 text-sm font-medium text-slate-500">{currentMonth.replace('-', '年')}月 · 支出计划</div>
 
         <div className="mb-6">
           <div className="text-sm font-medium mb-2">总预算</div>
@@ -66,7 +67,7 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
           ) : (
             <button
               onClick={() => setShowForm(true)}
-              className="w-full py-4 border-2 border-dashed border-gray-200 rounded-xl text-gray-500"
+              className="surface-card w-full border-dashed py-6 text-sm font-medium text-slate-500 active:bg-slate-50"
             >
               + 设置本月总预算
             </button>
@@ -89,7 +90,7 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
 
           <button
             onClick={() => setShowForm(true)}
-            className="w-full mt-4 py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-500"
+            className="surface-card mt-4 w-full border-dashed py-4 text-sm font-medium text-slate-500 active:bg-slate-50"
           >
             + 添加分类预算
           </button>
@@ -144,7 +145,7 @@ function BudgetCard({
   return (
     <button
       onClick={onClick}
-      className="w-full bg-white border border-gray-100 rounded-xl p-4 text-left active:bg-gray-50"
+      className="surface-card w-full p-4 text-left active:bg-slate-50"
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">

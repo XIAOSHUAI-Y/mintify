@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, BarChart3, MoreHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Shapes, MoreHorizontal, Repeat2, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import TransactionDetail from '../components/TransactionDetail';
-import BudgetPage from '../pages/BudgetPage';
 import CategoryPage from '../pages/CategoryPage';
 import RecurringPage from '../pages/RecurringPage';
 import { formatMoney, formatDateHeader, getMonthStart, getMonthEnd } from '../utils/helpers';
@@ -21,7 +20,6 @@ export default function HomePage() {
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [showBudget, setShowBudget] = useState(false);
   const [showCategory, setShowCategory] = useState(false);
   const [showRecurring, setShowRecurring] = useState(false);
   const [showMore, setShowMore] = useState(false);
@@ -45,6 +43,7 @@ export default function HomePage() {
     () => monthTransactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
     [monthTransactions]
   );
+  const balance = income - expense;
 
   const groupedTransactions = useMemo(() => {
     const groups: Record<string, Transaction[]> = {};
@@ -91,79 +90,81 @@ export default function HomePage() {
   }
 
   return (
-    <div className="h-[calc(100vh-5rem)] flex flex-col">
-      {/* Header */}
-      <div className="bg-primary px-4 pt-4 pb-6 rounded-b-3xl shrink-0">
-        <div className="flex items-center justify-between mb-4">
+    <div className="min-h-[calc(100svh-5.5rem)] bg-slate-50 pb-4">
+      <header className="safe-top px-4 pb-3">
+        <div className="mb-3 flex items-center justify-between">
           <button
             onClick={() => setShowLedgerSwitch(true)}
-            className="flex items-center gap-1 text-black/80"
+            className="flex min-h-11 items-center gap-1 rounded-full px-2 text-slate-800 active:bg-slate-100"
           >
-            <span className="font-medium">{currentLedger.name}</span>
+            <WalletCards size={18} className="text-amber-600" />
+            <span className="font-semibold">{currentLedger.name}</span>
             <ChevronDown size={16} />
           </button>
 
-          <div className="flex items-center gap-3">
-            <button onClick={goPrevYear}><ChevronLeft size={18} className="text-black/60" /></button>
-            <span className="text-sm">{selectedDate.getFullYear()}年</span>
-            <button onClick={goNextYear}><ChevronRight size={18} className="text-black/60" /></button>
+          <div className="flex items-center rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-100">
+            <button aria-label="上一年" onClick={goPrevYear} className="icon-button !h-9 !w-9"><ChevronLeft size={17} /></button>
+            <span className="min-w-14 text-center text-sm font-medium">{selectedDate.getFullYear()}</span>
+            <button aria-label="下一年" onClick={goNextYear} className="icon-button !h-9 !w-9"><ChevronRight size={17} /></button>
           </div>
         </div>
 
-        <button
-          onClick={() => setShowMonthPicker(true)}
-          className="flex items-baseline gap-2 mb-4"
-        >
-          <span className="text-6xl font-bold">{String(selectedDate.getMonth() + 1).padStart(2, '0')}</span>
-          <span className="text-lg">月</span>
-          <ChevronDown size={20} className="text-black/60" />
-        </button>
-
-        <div className="flex">
-          <div className="flex-1 text-center">
-            <div className="text-sm text-black/60 mb-1">收入</div>
-            <div className="text-xl font-semibold text-green-700">{formatMoney(income)}</div>
+        <div className="overflow-hidden rounded-[1.5rem] bg-primary p-5 shadow-[0_16px_36px_rgba(250,204,21,0.22)]">
+          <div className="mb-5 flex items-start justify-between">
+            <div>
+              <div className="mb-1 text-sm text-black/55">本月结余</div>
+              <div className="text-3xl font-bold tracking-tight">{formatMoney(balance)}</div>
+            </div>
+            <button
+              onClick={() => setShowMonthPicker(true)}
+              className="flex min-h-11 items-center gap-1 rounded-full bg-black/5 px-3 text-sm font-semibold active:bg-black/10"
+            >
+              {String(selectedDate.getMonth() + 1).padStart(2, '0')} 月
+              <ChevronDown size={16} />
+            </button>
           </div>
-          <div className="w-px bg-black/10"></div>
-          <div className="flex-1 text-center">
-            <div className="text-sm text-black/60 mb-1">支出</div>
-            <div className="text-xl font-semibold text-red-600">{formatMoney(expense)}</div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-white/55 px-3 py-2.5">
+              <div className="text-xs text-black/50">收入</div>
+              <div className="mt-0.5 font-semibold text-emerald-700">{formatMoney(income)}</div>
+            </div>
+            <div className="rounded-2xl bg-white/55 px-3 py-2.5">
+              <div className="text-xs text-black/50">支出</div>
+              <div className="mt-0.5 font-semibold text-rose-600">{formatMoney(expense)}</div>
+            </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Quick Actions */}
-      <div className="flex py-4 bg-white shrink-0">
-        <button className="flex-1 flex flex-col items-center gap-1 text-gray-700">
-          <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50">
-            <FileText size={22} className="text-yellow-600" />
-          </div>
-          <span className="text-xs">账单</span>
+      <section aria-label="快捷功能" className="grid grid-cols-3 gap-2 px-4 py-3">
+        <button onClick={() => setShowCategory(true)} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]">
+          <Shapes size={21} className="text-amber-600" />
+          <span className="text-xs font-medium">分类</span>
         </button>
-        <button
-          onClick={() => setShowBudget(true)}
-          className="flex-1 flex flex-col items-center gap-1 text-gray-700"
-        >
-          <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50">
-            <BarChart3 size={22} className="text-yellow-600" />
-          </div>
-          <span className="text-xs">预算</span>
+        <button onClick={() => setShowRecurring(true)} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]">
+          <Repeat2 size={21} className="text-amber-600" />
+          <span className="text-xs font-medium">周期</span>
         </button>
         <button
           onClick={() => setShowMore(true)}
-          className="flex-1 flex flex-col items-center gap-1 text-gray-700"
+          className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]"
         >
-          <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50">
-            <MoreHorizontal size={22} className="text-yellow-600" />
-          </div>
-          <span className="text-xs">更多</span>
+          <MoreHorizontal size={21} className="text-amber-600" />
+          <span className="text-xs font-medium">更多</span>
         </button>
-      </div>
+      </section>
 
-      {/* Transaction List */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      <section className="px-4 pb-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h1 className="text-base font-bold text-slate-900">本月明细</h1>
+          <span className="text-xs text-slate-400">{monthTransactions.length} 笔</span>
+        </div>
         {groupedTransactions.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">本月还没有记账哦~</div>
+          <div className="surface-card py-12 text-center">
+            <div className="text-sm font-medium text-slate-500">本月还没有账单</div>
+            <div className="mt-1 text-xs text-slate-400">点击下方 + 开始第一笔记录</div>
+          </div>
         ) : (
           <div className="space-y-4">
             {groupedTransactions.map((group) => (
@@ -177,14 +178,14 @@ export default function HomePage() {
                     )}
                   </span>
                 </div>
-                <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+                <div className="surface-card overflow-hidden">
                   {group.transactions.map((transaction) => {
                     const category = categories.find((c) => c.id === transaction.categoryId);
                     return (
                       <button
                         key={transaction.id}
                         onClick={() => setSelectedTransaction(transaction)}
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors border-b border-gray-50 last:border-0"
+                        className="flex min-h-16 w-full items-center gap-3 border-b border-slate-100 px-4 py-3 transition-colors last:border-0 active:bg-slate-50"
                       >
                         <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-white"
@@ -218,7 +219,7 @@ export default function HomePage() {
             ))}
           </div>
         )}
-      </div>
+      </section>
 
       {selectedTransaction && (
         <TransactionDetail
@@ -227,42 +228,36 @@ export default function HomePage() {
         />
       )}
 
-      {showBudget && <BudgetPage onClose={() => setShowBudget(false)} />}
       {showCategory && <CategoryPage onClose={() => setShowCategory(false)} />}
       {showRecurring && <RecurringPage onClose={() => setShowRecurring(false)} />}
 
       {showMore && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-          <div className="bg-white w-full rounded-t-2xl p-4 animate-in slide-in-from-bottom">
-            <div className="text-center text-gray-500 text-sm mb-4">更多</div>
-            <div className="grid grid-cols-3 gap-4">
+        <div className="sheet-backdrop" onClick={() => setShowMore(false)}>
+          <div className="bottom-sheet" onClick={(event) => event.stopPropagation()}>
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
+            <div className="mb-3 px-1 text-base font-semibold">更多功能</div>
+            <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => {
                   setShowMore(false);
                   setShowCategory(true);
                 }}
-                className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50"
+                className="flex min-h-20 items-center gap-3 rounded-2xl bg-slate-50 p-4 text-left active:bg-slate-100"
               >
-                <FileText size={24} className="text-yellow-600" />
-                <span className="text-xs">分类管理</span>
+                <Shapes size={23} className="text-amber-600" />
+                <span className="text-sm font-medium">分类管理</span>
               </button>
               <button
                 onClick={() => {
                   setShowMore(false);
                   setShowRecurring(true);
                 }}
-                className="flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-gray-50"
+                className="flex min-h-20 items-center gap-3 rounded-2xl bg-slate-50 p-4 text-left active:bg-slate-100"
               >
-                <BarChart3 size={24} className="text-yellow-600" />
-                <span className="text-xs">周期记账</span>
+                <Repeat2 size={23} className="text-amber-600" />
+                <span className="text-sm font-medium">周期记账</span>
               </button>
             </div>
-            <button
-              onClick={() => setShowMore(false)}
-              className="w-full mt-4 py-3 text-gray-500 bg-gray-100 rounded-xl"
-            >
-              取消
-            </button>
           </div>
         </div>
       )}
@@ -304,8 +299,8 @@ function MonthPicker({
   const selectedMonth = selectedDate.getMonth();
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-      <div className="bg-white w-full rounded-t-2xl p-4 animate-in slide-in-from-bottom">
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="bottom-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="text-center text-gray-500 text-sm mb-4">选择月份</div>
 
         <div className="flex items-center justify-between mb-4 px-4">
@@ -353,8 +348,8 @@ function LedgerSwitch({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-      <div className="bg-white w-full rounded-t-2xl p-4 animate-in slide-in-from-bottom">
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="bottom-sheet" onClick={(event) => event.stopPropagation()}>
         <div className="text-center text-gray-500 text-sm mb-4">切换账本</div>
         <div className="space-y-2 mb-4">
           {ledgers.map((ledger) => (

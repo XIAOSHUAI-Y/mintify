@@ -21,34 +21,34 @@ export default function CategoryPage({ onClose }: CategoryPageProps) {
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
-    <div className="fixed inset-0 bg-white z-50 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <button onClick={onClose} className="text-gray-600"><X size={20} /></button>
-        <div className="font-medium">分类管理</div>
-        <button onClick={() => setShowForm(true)}><Plus size={22} className="text-yellow-700" /></button>
+    <div className="mobile-overlay">
+      <div className="mobile-toolbar">
+        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600"><X size={20} /></button>
+        <div className="font-semibold">分类管理</div>
+        <button aria-label="新增分类" onClick={() => setShowForm(true)} className="icon-button"><Plus size={22} className="text-amber-700" /></button>
       </div>
 
-      <div className="flex p-2 bg-gray-50 m-4 rounded-lg">
+      <div className="m-4 flex rounded-xl bg-slate-200/60 p-1">
         <button
           onClick={() => setType('expense')}
-          className={`flex-1 py-2 rounded-md text-sm ${type === 'expense' ? 'bg-white shadow-sm' : 'text-gray-500'}`}
+          className={`min-h-11 flex-1 rounded-lg text-sm font-medium ${type === 'expense' ? 'bg-white shadow-sm' : 'text-slate-500'}`}
         >
           支出
         </button>
         <button
           onClick={() => setType('income')}
-          className={`flex-1 py-2 rounded-md text-sm ${type === 'income' ? 'bg-white shadow-sm' : 'text-gray-500'}`}
+          className={`min-h-11 flex-1 rounded-lg text-sm font-medium ${type === 'income' ? 'bg-white shadow-sm' : 'text-slate-500'}`}
         >
           收入
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-8">
         <div className="space-y-2">
           {filteredCategories.map((category) => (
             <div
               key={category.id}
-              className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl"
+              className="surface-card flex min-h-16 items-center gap-3 p-3"
             >
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center text-white"

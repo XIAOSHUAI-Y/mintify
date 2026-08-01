@@ -6,12 +6,20 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color: #111827;
+  background: #eef1f5;
 }
 
 body {
   margin: 0;
-  background-color: #f3f4f6;
+  min-width: 320px;
+  min-height: 100svh;
+  background-color: #eef1f5;
   overscroll-behavior: none;
+}
+
+.safe-top {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
 }
 
 .safe-bottom {
@@ -25,6 +33,65 @@ body {
   background-color: white;
   position: relative;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+}
+
+.mobile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+}
+
+.mobile-toolbar {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0.75rem;
+  border-bottom: 1px solid #eef0f3;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(16px);
+}
+
+.icon-button {
+  display: inline-flex;
+  width: 2.75rem;
+  height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.icon-button:active {
+  background: #f3f4f6;
+  transform: scale(0.96);
+}
+
+.surface-card {
+  border: 1px solid #edf0f3;
+  border-radius: 1.25rem;
+  background: #fff;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.035);
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.bottom-sheet {
+  width: 100%;
+  border-radius: 1.5rem 1.5rem 0 0;
+  background: #fff;
+  padding: 0.75rem 1rem max(1rem, env(safe-area-inset-bottom));
+  box-shadow: 0 -16px 40px rgba(15, 23, 42, 0.12);
 }
 
 @media (min-width: 768px) {

@@ -36,14 +36,15 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-          <span className="font-medium">账单详情</span>
-          <button onClick={onClose}><X size={20} /></button>
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="bottom-sheet max-h-[88svh] overflow-y-auto" onClick={(event) => event.stopPropagation()}>
+        <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-200" />
+        <div className="flex items-center justify-between py-2">
+          <span className="font-semibold">账单详情</span>
+          <button aria-label="关闭账单详情" onClick={onClose} className="icon-button"><X size={20} /></button>
         </div>
 
-        <div className="p-6 text-center">
+        <div className="px-6 pb-6 pt-3 text-center">
           <div
             className="w-16 h-16 rounded-full flex items-center justify-center text-white mx-auto mb-3"
             style={{ backgroundColor: category?.color || '#9CA3AF' }}
@@ -65,7 +66,7 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
           </div>
         </div>
 
-        <div className="px-4 pb-4 space-y-3">
+        <div className="rounded-2xl bg-slate-50 px-4 py-2">
           <div className="flex justify-between py-2 border-b border-gray-50">
             <span className="text-gray-500">类型</span>
             <span>
@@ -96,7 +97,7 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
           )}
         </div>
 
-        <div className="p-4 flex gap-3">
+        <div className="flex gap-3 pt-4">
           <button
             onClick={() => setShowEdit(true)}
             className="flex-1 py-3 bg-primary rounded-xl font-medium"
@@ -105,6 +106,7 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
           </button>
           <button
             onClick={() => setShowDelete(true)}
+            aria-label="删除账单"
             className="px-4 py-3 bg-red-50 text-red-500 rounded-xl"
           >
             <Trash2 size={20} />
