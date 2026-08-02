@@ -1,7 +1,7 @@
 {
   "name": "mintify",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.3.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "antd-mobile": "^5.42.3",
     "date-fns": "^4.4.0",
     "idb": "^8.0.3",
     "lucide-react": "^1.24.0",

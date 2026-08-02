@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { X, WalletCards } from 'lucide-react';
+import { Popover } from 'antd-mobile';
+import { Check, ChevronDown, X, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import { formatMoney, getYearMonth } from '../utils/helpers';
@@ -280,7 +281,12 @@ function BudgetForm({
   const { currentLedger } = useApp();
   const [amount, setAmount] = useState(budget ? String(budget.amount) : '');
   const [categoryId, setCategoryId] = useState(budget?.categoryId || categories[0]?.id || '');
+  const [categorySelectOpen, setCategorySelectOpen] = useState(false);
   const isOverall = budgetType === 'overall';
+  const selectedCategory = useMemo(
+    () => categories.find((category) => category.id === categoryId) || categories[0],
+    [categories, categoryId]
+  );
 
   const currentAllocationSummary = useMemo(
     () => currentLedger
@@ -348,15 +354,87 @@ function BudgetForm({
 
         {!isOverall && (
           <>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full p-3 border border-gray-200 rounded-lg mb-3"
+            {categorySelectOpen && (
+              <button
+                type="button"
+                aria-label="收起分类选择器"
+                className="fixed inset-0 z-[70] bg-slate-950/20 backdrop-blur-[1px]"
+                onClick={() => setCategorySelectOpen(false)}
+              />
+            )}
+
+            {/* 使用组件库 Popover 实现 Select：默认只展示当前值，选择后自动收起。 */}
+            <Popover
+              className="mintify-budget-category-select"
+              visible={categorySelectOpen}
+              onVisibleChange={setCategorySelectOpen}
+              trigger="click"
+              placement="bottom-start"
+              content={(
+                <div className="mintify-budget-category-options hide-scrollbar">
+                  {categories.map((category) => {
+                    const selected = category.id === categoryId;
+                    return (
+                      <button
+                        type="button"
+                        key={category.id}
+                        aria-selected={selected}
+                        className={`mintify-budget-category-option ${selected ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          setCategoryId(category.id);
+                          setCategorySelectOpen(false);
+                        }}
+                      >
+                        <span
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+                          style={{ backgroundColor: category.color }}
+                        >
+                          <Icon name={category.icon} size={17} />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-left font-medium text-slate-700">
+                          {category.name}
+                        </span>
+                        <span className={`flex h-6 w-6 items-center justify-center rounded-full ${
+                          selected ? 'bg-amber-500 text-white' : 'text-transparent'
+                        }`}>
+                          <Check size={15} strokeWidth={3} />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             >
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+              <button
+                type="button"
+                aria-label="选择预算分类"
+                aria-expanded={categorySelectOpen}
+                className={`mb-3 flex min-h-14 w-full items-center gap-3 rounded-xl border bg-white px-3 text-left transition-all ${
+                  categorySelectOpen
+                    ? 'border-amber-400 ring-4 ring-amber-100'
+                    : 'border-slate-200 active:bg-slate-50'
+                }`}
+              >
+                {selectedCategory && (
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+                    style={{ backgroundColor: selectedCategory.color }}
+                  >
+                    <Icon name={selectedCategory.icon} size={17} />
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-medium text-slate-400">预算分类</span>
+                  <span className="mt-0.5 block truncate text-sm font-semibold text-slate-800">
+                    {selectedCategory?.name || '请选择分类'}
+                  </span>
+                </span>
+                <ChevronDown
+                  size={19}
+                  className={`shrink-0 text-slate-400 transition-transform ${categorySelectOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+            </Popover>
 
             <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
               <div className="flex items-center justify-between gap-3 text-sm">
