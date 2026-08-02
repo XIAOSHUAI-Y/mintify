@@ -17,7 +17,7 @@ export default function CategoryPage({ onClose }: CategoryPageProps) {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
   const filteredCategories = categories
-    .filter((c) => c.type === type)
+    .filter((category) => category.type === type && category.name !== '退款')
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (

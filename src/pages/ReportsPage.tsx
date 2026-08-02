@@ -6,6 +6,7 @@ import TrendChart from '../components/charts/TrendChart';
 import AnnualSummary from '../components/charts/AnnualSummary';
 import BudgetUsageChart from '../components/charts/BudgetUsageChart';
 import { formatMoney } from '../utils/helpers';
+import { summarizeTransactions } from '../domain/transactionAccounting';
 
 export default function ReportsPage() {
   const { currentLedger, transactions, categories, budgets } = useApp();
@@ -21,9 +22,7 @@ export default function ReportsPage() {
   }, [currentLedger, transactions, selectedYear]);
 
   const summary = useMemo(() => {
-    const income = yearlyTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const expense = yearlyTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-    return { income, expense, balance: income - expense };
+    return summarizeTransactions(yearlyTransactions);
   }, [yearlyTransactions]);
 
   return (
@@ -55,17 +54,16 @@ export default function ReportsPage() {
             <div className="mt-0.5 font-semibold text-emerald-600">{formatMoney(summary.income)}</div>
           </div>
           <div className="rounded-2xl border border-rose-100 bg-white/80 px-3 py-2.5 shadow-sm">
-            <div className="text-xs text-slate-500">总支出</div>
-            <div className="mt-0.5 font-semibold text-rose-500">{formatMoney(summary.expense)}</div>
+            <div className="text-xs text-slate-500">净支出</div>
+            <div className="mt-0.5 font-semibold text-rose-500">{formatMoney(summary.netExpense)}</div>
           </div>
         </div>
       </section>
 
       <MonthlyPieChart
-        transactions={yearlyTransactions.filter((t) => {
-          return new Date(t.occurredAt).getMonth() === selectedMonth;
-        })}
+        transactions={transactions.filter((transaction) => transaction.ledgerId === currentLedger?.id)}
         categories={categories}
+        yearMonth={`${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`}
         title={`${selectedMonth + 1} 月支出构成`}
       />
 

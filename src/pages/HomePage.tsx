@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Shapes, MoreHorizontal, Repeat2, WalletCards } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Shapes, Repeat2, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import TransactionDetail from '../components/TransactionDetail';
 import CategoryPage from '../pages/CategoryPage';
 import RecurringPage from '../pages/RecurringPage';
+import FundPage from '../pages/FundPage';
 import { formatMoney, formatDateHeader, getMonthStart, getMonthEnd } from '../utils/helpers';
 import type { Transaction } from '../types';
+import { isRefund, summarizeTransactions } from '../domain/transactionAccounting';
 
 export default function HomePage() {
   const {
@@ -22,7 +24,7 @@ export default function HomePage() {
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showCategory, setShowCategory] = useState(false);
   const [showRecurring, setShowRecurring] = useState(false);
-  const [showMore, setShowMore] = useState(false);
+  const [showFund, setShowFund] = useState(false);
   const [showLedgerSwitch, setShowLedgerSwitch] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
 
@@ -35,15 +37,7 @@ export default function HomePage() {
       .sort((a, b) => b.occurredAt - a.occurredAt);
   }, [currentLedger, transactions, selectedDate]);
 
-  const income = useMemo(
-    () => monthTransactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
-    [monthTransactions]
-  );
-  const expense = useMemo(
-    () => monthTransactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
-    [monthTransactions]
-  );
-  const balance = income - expense;
+  const summary = useMemo(() => summarizeTransactions(monthTransactions), [monthTransactions]);
 
   const groupedTransactions = useMemo(() => {
     const groups: Record<string, Transaction[]> = {};
@@ -113,7 +107,7 @@ export default function HomePage() {
           <div className="mb-5 flex items-start justify-between">
             <div>
               <div className="mb-1 text-sm text-black/55">本月结余</div>
-              <div className="text-3xl font-bold tracking-tight">{formatMoney(balance)}</div>
+              <div className="text-3xl font-bold tracking-tight">{formatMoney(summary.balance)}</div>
             </div>
             <button
               onClick={() => setShowMonthPicker(true)}
@@ -127,13 +121,19 @@ export default function HomePage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-white/55 px-3 py-2.5">
               <div className="text-xs text-black/50">收入</div>
-              <div className="mt-0.5 font-semibold text-emerald-700">{formatMoney(income)}</div>
+              <div className="mt-0.5 font-semibold text-emerald-700">{formatMoney(summary.income)}</div>
             </div>
             <div className="rounded-2xl bg-white/55 px-3 py-2.5">
-              <div className="text-xs text-black/50">支出</div>
-              <div className="mt-0.5 font-semibold text-rose-600">{formatMoney(expense)}</div>
+              <div className="text-xs text-black/50">净支出</div>
+              <div className="mt-0.5 font-semibold text-rose-600">{formatMoney(summary.netExpense)}</div>
             </div>
           </div>
+          {summary.refunds > 0 && (
+            <div className="mt-3 flex items-center justify-between rounded-xl bg-white/45 px-3 py-2 text-xs">
+              <span className="text-black/50">已冲减退款</span>
+              <span className="font-semibold text-amber-800">+{formatMoney(summary.refunds)}</span>
+            </div>
+          )}
         </div>
       </header>
 
@@ -147,11 +147,11 @@ export default function HomePage() {
           <span className="text-xs font-medium">周期</span>
         </button>
         <button
-          onClick={() => setShowMore(true)}
+          onClick={() => setShowFund(true)}
           className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]"
         >
-          <MoreHorizontal size={21} className="text-amber-600" />
-          <span className="text-xs font-medium">更多</span>
+          <CalendarClock size={21} className="text-amber-600" />
+          <span className="text-xs font-medium">资金</span>
         </button>
       </section>
 
@@ -167,15 +167,18 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {groupedTransactions.map((group) => (
+            {groupedTransactions.map((group) => {
+              const daySummary = summarizeTransactions(group.transactions);
+              return (
               <div key={group.date}>
                 <div className="flex justify-between text-sm text-gray-500 mb-2">
                   <span>{formatDateHeader(group.date)}</span>
                   <span>
-                    支出:{' '}
-                    {formatMoney(
-                      group.transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-                    )}
+                    {daySummary.income > 0 && <span className="text-emerald-600">收入 +{formatMoney(daySummary.income)}</span>}
+                    {daySummary.income > 0 && (daySummary.grossExpense > 0 || daySummary.refunds > 0) && <span> · </span>}
+                    {daySummary.grossExpense > 0 && <span>支出 {formatMoney(daySummary.grossExpense)}</span>}
+                    {daySummary.grossExpense > 0 && daySummary.refunds > 0 && <span> · </span>}
+                    {daySummary.refunds > 0 && <span className="text-amber-700">退款 +{formatMoney(daySummary.refunds)}</span>}
                   </span>
                 </div>
                 <div className="surface-card overflow-hidden">
@@ -194,14 +197,16 @@ export default function HomePage() {
                           <Icon name={category?.icon || 'more-horizontal'} size={18} />
                         </div>
                         <div className="flex-1 text-left">
-                          <div className="font-medium">{category?.name || '未分类'}</div>
+                          <div className="font-medium">{isRefund(transaction) ? '退款' : category?.name || '未分类'}</div>
                           {transaction.note && (
                             <div className="text-xs text-gray-400 truncate">{transaction.note}</div>
                           )}
                         </div>
                         <div
                           className={`font-semibold ${
-                            transaction.type === 'income'
+                            isRefund(transaction)
+                              ? 'text-amber-700'
+                              : transaction.type === 'income'
                               ? 'text-green-600'
                               : transaction.type === 'expense'
                               ? 'text-red-500'
@@ -216,7 +221,8 @@ export default function HomePage() {
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
@@ -230,37 +236,8 @@ export default function HomePage() {
 
       {showCategory && <CategoryPage onClose={() => setShowCategory(false)} />}
       {showRecurring && <RecurringPage onClose={() => setShowRecurring(false)} />}
+      {showFund && <FundPage onClose={() => setShowFund(false)} />}
 
-      {showMore && (
-        <div className="sheet-backdrop" onClick={() => setShowMore(false)}>
-          <div className="bottom-sheet" onClick={(event) => event.stopPropagation()}>
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-200" />
-            <div className="mb-3 px-1 text-base font-semibold">更多功能</div>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => {
-                  setShowMore(false);
-                  setShowCategory(true);
-                }}
-                className="flex min-h-20 items-center gap-3 rounded-2xl bg-slate-50 p-4 text-left active:bg-slate-100"
-              >
-                <Shapes size={23} className="text-amber-600" />
-                <span className="text-sm font-medium">分类管理</span>
-              </button>
-              <button
-                onClick={() => {
-                  setShowMore(false);
-                  setShowRecurring(true);
-                }}
-                className="flex min-h-20 items-center gap-3 rounded-2xl bg-slate-50 p-4 text-left active:bg-slate-100"
-              >
-                <Repeat2 size={23} className="text-amber-600" />
-                <span className="text-sm font-medium">周期记账</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {showLedgerSwitch && (
         <LedgerSwitch
           ledgers={ledgers}

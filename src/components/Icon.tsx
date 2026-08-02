@@ -1,6 +1,7 @@
 import {
   Book,
   Wallet,
+  WalletCards,
   CreditCard,
   DollarSign,
   PieChart,
@@ -27,12 +28,14 @@ import {
   Briefcase,
   Mail,
   PlusCircle,
+  RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
 
 const iconMap: Record<string, LucideIcon> = {
   book: Book,
   wallet: Wallet,
+  'wallet-cards': WalletCards,
   'credit-card': CreditCard,
   'dollar-sign': DollarSign,
   'pie-chart': PieChart,
@@ -59,6 +62,7 @@ const iconMap: Record<string, LucideIcon> = {
   briefcase: Briefcase,
   mail: Mail,
   'plus-circle': PlusCircle,
+  'rotate-ccw': RotateCcw,
 };
 
 interface IconProps {

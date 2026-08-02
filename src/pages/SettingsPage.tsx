@@ -291,6 +291,7 @@ export default function SettingsPage() {
               <div>账本：{pendingImport.preview.ledgers} 个</div>
               <div>交易：{pendingImport.preview.transactions} 条</div>
               <div>分类：{pendingImport.preview.categories} 个</div>
+              <div>资金记录：{pendingImport.preview.fundTransactions} 条</div>
             </div>
             <div className="text-xs text-orange-600 mt-3">
               覆盖恢复会先清除当前数据；操作在同一事务中完成，失败时自动回滚。

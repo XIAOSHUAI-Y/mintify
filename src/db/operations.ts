@@ -1,4 +1,18 @@
-import type { AppSettings, Budget, Category, Ledger, RecurringRule, Transaction } from '../types';
+import type {
+  AppSettings,
+  Budget,
+  Category,
+  FundTransaction,
+  Ledger,
+  RecurringRule,
+  Transaction,
+} from '../types';
+import { shouldRemoveLinkedMainIncome } from '../domain/fundLedger';
+import {
+  getNetSpendingByCategory,
+  getRemainingRefundableAmount,
+  isRefund,
+} from '../domain/transactionAccounting';
 import {
   DEFAULT_APP_SETTINGS,
   deleteItem,
@@ -7,6 +21,8 @@ import {
   getBudgetsByLedger,
   getCategoriesByLedger,
   getDB,
+  getFundTransactionsByLedger,
+  getById,
   getRecurringRulesByLedger,
   getTransactionsByLedger,
   putItem,
@@ -15,6 +31,7 @@ import {
 } from './index';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../data/seed';
 import { generateId, getDayEnd, getDayStart, getMonthEnd, getMonthStart, getYearMonth } from '../utils/helpers';
+import { APP_VERSION } from '../pwa/app-version';
 
 // Bootstrap
 export async function bootstrapIfNeeded(): Promise<void> {
@@ -62,6 +79,26 @@ export async function bootstrapIfNeeded(): Promise<void> {
   }
 }
 
+/** 为升级前的已有账本补齐退款分类，不依赖数据库结构迁移。 */
+export async function ensureRefundCategory(ledgerId: string): Promise<Category> {
+  const categories = await getCategoriesByLedger(ledgerId);
+  const existing = categories.find((category) => category.type === 'income' && category.name === '退款');
+  if (existing) return existing;
+  const preset = INCOME_CATEGORIES.find((category) => category.name === '退款')!;
+  const refundCategory: Category = {
+    id: generateId(),
+    ledgerId,
+    name: preset.name,
+    icon: preset.icon,
+    color: preset.color,
+    type: 'income',
+    sortOrder: categories.length,
+    isBuiltIn: true,
+  };
+  await saveCategory(refundCategory);
+  return refundCategory;
+}
+
 // Ledgers
 export async function getLedgers(): Promise<Ledger[]> {
   const ledgers = await getAll<Ledger>('ledgers');
@@ -87,6 +124,8 @@ export async function deleteLedger(ledgerId: string): Promise<void> {
   for (const b of budgets) await deleteItem('budgets', b.id);
   const rules = await getRecurringRulesByLedger(ledgerId);
   for (const r of rules) await deleteItem('recurringRules', r.id);
+  const fundTransactions = await getFundTransactionsByLedger(ledgerId);
+  for (const transaction of fundTransactions) await deleteFundTransaction(transaction.id);
 }
 
 export async function setDefaultLedger(ledgerId: string): Promise<void> {
@@ -108,10 +147,39 @@ export async function deleteCategory(categoryId: string): Promise<void> {
 
 // Transactions
 export async function saveTransaction(transaction: Transaction): Promise<void> {
+  const transactions = await getTransactionsByLedger(transaction.ledgerId);
+  if (isRefund(transaction)) {
+    const linkedExpenseId = transaction.linkedExpenseTransactionId;
+    const linkedExpense = transactions.find((item) => item.id === linkedExpenseId);
+    if (!linkedExpense || linkedExpense.type !== 'expense' || linkedExpense.ledgerId !== transaction.ledgerId) {
+      throw new Error('退款必须绑定当前账本中的支出');
+    }
+    if (transaction.type !== 'income' || !Number.isFinite(transaction.amount) || transaction.amount <= 0) {
+      throw new Error('退款金额必须大于 0');
+    }
+    const remaining = getRemainingRefundableAmount(transactions, linkedExpense.id, transaction.id);
+    if (transaction.amount > remaining) throw new Error('退款金额超过原支出可退金额');
+  }
+
+  const linkedRefunds = transactions.filter((item) =>
+    isRefund(item) && item.linkedExpenseTransactionId === transaction.id);
+  if (linkedRefunds.length > 0) {
+    const refundedAmount = linkedRefunds.reduce((sum, item) => sum + item.amount, 0);
+    if (transaction.type !== 'expense' || transaction.amount < refundedAmount) {
+      throw new Error('原支出已有退款，不能改为非支出或小于累计退款金额');
+    }
+  }
   await putItem('transactions', transaction);
 }
 
 export async function deleteTransaction(transactionId: string): Promise<void> {
+  const transaction = await getById<Transaction>('transactions', transactionId);
+  if (transaction) {
+    const transactions = await getTransactionsByLedger(transaction.ledgerId);
+    if (transactions.some((item) => isRefund(item) && item.linkedExpenseTransactionId === transactionId)) {
+      throw new Error('该支出已有退款，请先删除关联退款');
+    }
+  }
   await deleteItem('transactions', transactionId);
 }
 
@@ -127,6 +195,110 @@ export async function getTransactionsForMonth(ledgerId: string, timestamp: numbe
   return transactions
     .filter((t) => t.occurredAt >= start && t.occurredAt <= end)
     .sort((a, b) => b.occurredAt - a.occurredAt);
+}
+
+// Fund transactions
+export async function saveFundTransaction(transaction: FundTransaction): Promise<void> {
+  await putItem('fundTransactions', transaction);
+}
+
+export async function getFundTransactions(ledgerId: string): Promise<FundTransaction[]> {
+  const transactions = await getFundTransactionsByLedger(ledgerId);
+  return transactions.sort((a, b) => b.occurredAt - a.occurredAt || b.createdAt - a.createdAt);
+}
+
+export async function allocateLivingExpense(
+  allocation: FundTransaction,
+  mainIncome: Transaction,
+  incomeCategory: Category,
+): Promise<void> {
+  const isConsistent = allocation.kind === 'living-expense-allocation'
+    && allocation.type === 'expense'
+    && allocation.category === '生活费'
+    && allocation.ledgerId === mainIncome.ledgerId
+    && allocation.ledgerId === incomeCategory.ledgerId
+    && allocation.linkedTransactionId === mainIncome.id
+    && allocation.mainIncomeOrigin === 'auto-created'
+    && allocation.amount === mainIncome.amount
+    && allocation.occurredAt === mainIncome.occurredAt
+    && mainIncome.type === 'income'
+    && mainIncome.categoryId === incomeCategory.id
+    && incomeCategory.type === 'income'
+    && incomeCategory.name === '生活费'
+    && Number.isFinite(allocation.amount)
+    && allocation.amount > 0;
+
+  if (!isConsistent) throw new Error('生活费划拨记录不一致');
+
+  const monthStart = getMonthStart(allocation.occurredAt);
+  const monthEnd = getMonthEnd(allocation.occurredAt);
+  const existingAllocations = await getFundTransactionsByLedger(allocation.ledgerId);
+  const hasAnotherAllocation = existingAllocations.some((transaction) =>
+    transaction.id !== allocation.id
+    && transaction.kind === 'living-expense-allocation'
+    && transaction.occurredAt >= monthStart
+    && transaction.occurredAt <= monthEnd);
+  if (hasAnotherAllocation) throw new Error('每月只能划拨一次生活费');
+
+  const db = await getDB();
+  const write = db.transaction(['categories', 'transactions', 'fundTransactions'], 'readwrite');
+  // 三条数据必须原子写入，避免资金侧已扣款但生活费主账本没有到账。
+  await write.objectStore('categories').put(incomeCategory);
+  await write.objectStore('transactions').put(mainIncome);
+  await write.objectStore('fundTransactions').put(allocation);
+  await write.done;
+}
+
+export async function linkExistingLivingExpenseIncome(
+  allocation: FundTransaction,
+  existingIncome: Transaction,
+): Promise<void> {
+  const storedIncome = await getById<Transaction>('transactions', existingIncome.id);
+  const isConsistent = storedIncome !== undefined
+    && allocation.kind === 'living-expense-allocation'
+    && allocation.type === 'expense'
+    && allocation.category === '生活费'
+    && allocation.ledgerId === existingIncome.ledgerId
+    && allocation.linkedTransactionId === existingIncome.id
+    && allocation.mainIncomeOrigin === 'existing'
+    && allocation.amount === existingIncome.amount
+    && allocation.occurredAt === existingIncome.occurredAt
+    && existingIncome.type === 'income'
+    && !isRefund(existingIncome)
+    && storedIncome.ledgerId === existingIncome.ledgerId
+    && storedIncome.amount === existingIncome.amount
+    && storedIncome.occurredAt === existingIncome.occurredAt
+    && Number.isFinite(allocation.amount)
+    && allocation.amount > 0;
+  if (!isConsistent) throw new Error('已有生活费收入与资金划拨不一致');
+
+  const monthStart = getMonthStart(allocation.occurredAt);
+  const monthEnd = getMonthEnd(allocation.occurredAt);
+  const existingAllocations = await getFundTransactionsByLedger(allocation.ledgerId);
+  const hasAnotherAllocation = existingAllocations.some((transaction) =>
+    transaction.id !== allocation.id
+    && transaction.kind === 'living-expense-allocation'
+    && transaction.occurredAt >= monthStart
+    && transaction.occurredAt <= monthEnd);
+  if (hasAnotherAllocation) throw new Error('每月只能划拨一次生活费');
+
+  // 这里只写资金侧关联，已有主账本收入保持原样，避免重复记一笔收入。
+  await putItem('fundTransactions', allocation);
+}
+
+export async function deleteFundTransaction(transactionId: string): Promise<void> {
+  const fundTransaction = await getById<FundTransaction>('fundTransactions', transactionId);
+  if (!fundTransaction) return;
+
+  const db = await getDB();
+  const write = db.transaction(['transactions', 'fundTransactions'], 'readwrite');
+  await write.objectStore('fundTransactions').delete(transactionId);
+  // 生活费收入由划拨自动生成，撤销划拨时也要同步撤销，避免主账本凭空多一笔收入。
+  const linkedTransactionId = fundTransaction.linkedTransactionId;
+  if (linkedTransactionId && shouldRemoveLinkedMainIncome(fundTransaction)) {
+    await write.objectStore('transactions').delete(linkedTransactionId);
+  }
+  await write.done;
 }
 
 // Budgets
@@ -317,19 +489,12 @@ export function calculateBudgetSpent(
   budget: Budget,
   monthTimestamp: number
 ): number {
-  const start = getMonthStart(monthTimestamp);
-  const end = getMonthEnd(monthTimestamp);
-  return transactions
-    .filter((t) => {
-      if (t.type !== 'expense') return false;
-      if (t.occurredAt < start || t.occurredAt > end) return false;
-      if (budget.includeOverall) return true;
-      return t.categoryId === budget.categoryId;
-    })
-    .reduce((sum, t) => sum + t.amount, 0);
+  const spending = getNetSpendingByCategory(transactions, getYearMonth(monthTimestamp));
+  if (budget.includeOverall) return [...spending.values()].reduce((sum, amount) => sum + amount, 0);
+  return budget.categoryId ? spending.get(budget.categoryId) ?? 0 : 0;
 }
 
-const BACKUP_SCHEMA_VERSION = 2;
+const BACKUP_SCHEMA_VERSION = 5;
 
 interface BackupData {
   ledgers: Ledger[];
@@ -337,6 +502,7 @@ interface BackupData {
   transactions: Transaction[];
   budgets: Budget[];
   recurringRules: RecurringRule[];
+  fundTransactions: FundTransaction[];
   settings: AppSettings[];
 }
 
@@ -381,7 +547,7 @@ function parseBackup(json: string): BackupData {
 
   let rawData: Record<string, unknown>;
   if ('schemaVersion' in parsed) {
-    if (parsed.schemaVersion !== BACKUP_SCHEMA_VERSION) {
+    if (![2, 3, 4, BACKUP_SCHEMA_VERSION].includes(parsed.schemaVersion as number)) {
       throw new Error(`备份文件版本不受支持：${String(parsed.schemaVersion)}`);
     }
     if (!isRecord(parsed.data)) throw new Error('备份文件缺少 data 字段');
@@ -401,7 +567,10 @@ function parseBackup(json: string): BackupData {
     && hasString(item, 'categoryId')
     && hasNumber(item, 'amount')
     && hasNumber(item, 'occurredAt')
-    && hasNumber(item, 'createdAt'));
+    && hasNumber(item, 'createdAt')
+    && (item.kind === undefined || item.kind === 'refund')
+    && (item.kind !== 'refund' || hasString(item, 'linkedExpenseTransactionId')));
+  validateRefundRelations(transactions);
   const budgets = validateRecords<Budget>(rawData.budgets, '预算', (item) =>
     hasString(item, 'id') && hasString(item, 'ledgerId') && hasNumber(item, 'amount'));
   const recurringRules = validateRecords<RecurringRule>(rawData.recurringRules, '周期规则', (item) =>
@@ -409,6 +578,17 @@ function parseBackup(json: string): BackupData {
     && hasString(item, 'ledgerId')
     && hasString(item, 'categoryId')
     && hasNumber(item, 'amount'));
+  const fundTransactions = rawData.fundTransactions === undefined
+    ? []
+    : validateRecords<FundTransaction>(rawData.fundTransactions, '资金记录', (item) =>
+      hasString(item, 'id')
+      && hasString(item, 'ledgerId')
+      && hasString(item, 'category')
+      && hasNumber(item, 'amount')
+      && hasNumber(item, 'occurredAt')
+      && hasNumber(item, 'createdAt')
+      && (item.type === 'income' || item.type === 'expense')
+      && (item.kind === 'record' || item.kind === 'living-expense-allocation'));
   const settings = rawData.settings === undefined
     ? [{ ...DEFAULT_APP_SETTINGS }]
     : validateRecords<AppSettings>(rawData.settings, '设置', (item) =>
@@ -418,7 +598,31 @@ function parseBackup(json: string): BackupData {
       && Array.isArray(item.presetTags)
       && item.presetTags.every((tag) => typeof tag === 'string'));
 
-  return { ledgers, categories, transactions, budgets, recurringRules, settings };
+  return {
+    ledgers,
+    categories,
+    transactions,
+    budgets,
+    recurringRules,
+    fundTransactions,
+    settings,
+  };
+}
+
+function validateRefundRelations(transactions: Transaction[]): void {
+  const byId = new Map(transactions.map((transaction) => [transaction.id, transaction]));
+  const refundedByExpense = new Map<string, number>();
+  for (const transaction of transactions) {
+    if (!isRefund(transaction)) continue;
+    const expenseId = transaction.linkedExpenseTransactionId!;
+    const expense = byId.get(expenseId);
+    if (!expense || expense.type !== 'expense' || expense.ledgerId !== transaction.ledgerId || transaction.type !== 'income') {
+      throw new Error('备份文件中的退款关联不正确');
+    }
+    const refunded = (refundedByExpense.get(expenseId) ?? 0) + transaction.amount;
+    if (refunded > expense.amount) throw new Error('备份文件中的退款金额超过原支出');
+    refundedByExpense.set(expenseId, refunded);
+  }
 }
 
 export interface ImportOptions {
@@ -431,6 +635,7 @@ export interface ImportResult {
   transactions: number;
   budgets: number;
   recurringRules: number;
+  fundTransactions: number;
 }
 
 export interface BackupPreview extends ImportResult {
@@ -448,6 +653,7 @@ export function inspectBackup(json: string): BackupPreview {
     transactions: data.transactions.length,
     budgets: data.budgets.length,
     recurringRules: data.recurringRules.length,
+    fundTransactions: data.fundTransactions.length,
   };
   if (typeof parsed.exportedAt === 'number') preview.exportedAt = parsed.exportedAt;
   return preview;
@@ -461,13 +667,14 @@ export async function exportData(): Promise<string> {
   const backup: MintifyBackup = {
     schemaVersion: BACKUP_SCHEMA_VERSION,
     exportedAt,
-    appVersion: '1.1.0',
+    appVersion: APP_VERSION,
     data: {
       ledgers: await getAll<Ledger>('ledgers'),
       categories: await getAll<Category>('categories'),
       transactions: await getAll<Transaction>('transactions'),
       budgets: await getAll<Budget>('budgets'),
       recurringRules: await getAll<RecurringRule>('recurringRules'),
+      fundTransactions: await getAll<FundTransaction>('fundTransactions'),
       settings: [settings],
     },
   };
@@ -487,6 +694,7 @@ export async function importData(
     'transactions',
     'budgets',
     'recurringRules',
+    'fundTransactions',
     'settings',
   ] as const;
   const transaction = db.transaction(storeNames, 'readwrite');
@@ -503,6 +711,7 @@ export async function importData(
   for (const item of data.transactions) await transaction.objectStore('transactions').put(item);
   for (const item of data.budgets) await transaction.objectStore('budgets').put(item);
   for (const item of data.recurringRules) await transaction.objectStore('recurringRules').put(item);
+  for (const item of data.fundTransactions) await transaction.objectStore('fundTransactions').put(item);
   for (const item of data.settings) await transaction.objectStore('settings').put(item);
   await transaction.done;
 
@@ -512,5 +721,6 @@ export async function importData(
     transactions: data.transactions.length,
     budgets: data.budgets.length,
     recurringRules: data.recurringRules.length,
+    fundTransactions: data.fundTransactions.length,
   };
 }

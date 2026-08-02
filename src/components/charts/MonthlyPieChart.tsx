@@ -2,31 +2,26 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { useMemo } from 'react';
 import { formatMoney } from '../../utils/helpers';
 import type { Transaction, Category } from '../../types';
+import { getNetSpendingByCategory } from '../../domain/transactionAccounting';
 
 interface MonthlyPieChartProps {
   transactions: Transaction[];
   categories: Category[];
   title?: string;
+  yearMonth: string;
 }
 
-export default function MonthlyPieChart({ transactions, categories, title = '本月支出构成' }: MonthlyPieChartProps) {
+export default function MonthlyPieChart({ transactions, categories, yearMonth, title = '本月支出构成' }: MonthlyPieChartProps) {
   const data = useMemo(() => {
-    const expenses = transactions.filter((t) => t.type === 'expense');
-    const grouped: Record<string, { name: string; value: number; color: string }> = {};
-
-    for (const t of expenses) {
-      const category = categories.find((c) => c.id === t.categoryId);
-      const key = category?.name || '未分类';
-      if (!grouped[key]) {
-        grouped[key] = { name: key, value: 0, color: category?.color || '#9CA3AF' };
-      }
-      grouped[key].value += t.amount;
-    }
-
-    return Object.values(grouped)
-      .filter((item) => item.value > 0)
+    const spending = getNetSpendingByCategory(transactions, yearMonth);
+    return [...spending.entries()]
+      .map(([categoryId, value]) => {
+        const category = categories.find((item) => item.id === categoryId);
+        return { name: category?.name || '未分类', value, color: category?.color || '#9CA3AF' };
+      })
+      .filter(({ value }) => value > 0)
       .sort((a, b) => b.value - a.value);
-  }, [transactions, categories]);
+  }, [transactions, categories, yearMonth]);
 
   const total = useMemo(() => data.reduce((sum, item) => sum + item.value, 0), [data]);
 

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { formatMoney } from '../../utils/helpers';
 import type { Transaction } from '../../types';
+import { summarizeTransactions } from '../../domain/transactionAccounting';
 
 interface AnnualSummaryProps {
   transactions: Transaction[];
@@ -9,17 +10,10 @@ interface AnnualSummaryProps {
 
 export default function AnnualSummary({ transactions, year }: AnnualSummaryProps) {
   const summary = useMemo(() => {
-    const income = transactions
-      .filter((t) => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
-    const expense = transactions
-      .filter((t) => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0);
-
+    const totals = summarizeTransactions(transactions);
     return {
-      income,
-      expense,
-      net: income - expense,
+      ...totals,
+      net: totals.balance,
       count: transactions.length,
     };
   }, [transactions]);
@@ -34,9 +28,15 @@ export default function AnnualSummary({ transactions, year }: AnnualSummaryProps
           <span className="font-semibold text-green-600">{formatMoney(summary.income)}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500">总支出</span>
-          <span className="font-semibold text-red-500">{formatMoney(summary.expense)}</span>
+          <span className="text-gray-500">净支出</span>
+          <span className="font-semibold text-red-500">{formatMoney(summary.netExpense)}</span>
         </div>
+        {summary.refunds > 0 && (
+          <div className="flex justify-between">
+            <span className="text-gray-500">退款冲减</span>
+            <span className="font-semibold text-amber-600">+{formatMoney(summary.refunds)}</span>
+          </div>
+        )}
         <div className="flex justify-between border-t border-gray-100 pt-3">
           <span className="text-gray-500">结余</span>
           <span className={`font-semibold ${summary.net >= 0 ? 'text-green-600' : 'text-red-500'}`}>

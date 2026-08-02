@@ -1,4 +1,5 @@
 import type { Budget, Transaction } from '../types';
+import { getNetSpendingByCategory } from './transactionAccounting';
 
 export type BudgetUsageStatus = 'no-budget' | 'on-track' | 'overspent';
 export type BudgetChangeKind = 'added' | 'removed' | 'amount_changed';
@@ -75,11 +76,8 @@ export function calculateBudgetAllocationSummary({
   }
 
   const allocatedAmount = [...categoryBudgetById.values()].reduce((sum, amount) => sum + amount, 0);
-  const monthExpenses = transactions.filter((transaction) =>
-    transaction.ledgerId === ledgerId
-    && transaction.type === 'expense'
-    && toYearMonth(transaction.occurredAt) === yearMonth);
-  const spendingByCategory = getCategorySpending(monthExpenses, yearMonth);
+  const ledgerTransactions = transactions.filter((transaction) => transaction.ledgerId === ledgerId);
+  const spendingByCategory = getNetSpendingByCategory(ledgerTransactions, yearMonth);
   let categoryOverspendAmount = 0;
   let unbudgetedSpendingAmount = 0;
 
@@ -108,8 +106,7 @@ export function buildMonthlyBudgetOverview({
   year,
 }: BuildMonthlyBudgetOverviewOptions): MonthlyBudgetOverview[] {
   const ledgerBudgets = budgets.filter((budget) => budget.ledgerId === ledgerId && budget.period === 'monthly');
-  const ledgerExpenses = transactions.filter((transaction) =>
-    transaction.ledgerId === ledgerId && transaction.type === 'expense');
+  const ledgerTransactions = transactions.filter((transaction) => transaction.ledgerId === ledgerId);
 
   return Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
@@ -117,8 +114,8 @@ export function buildMonthlyBudgetOverview({
     const previousYearMonth = getPreviousYearMonth(yearMonth);
     const currentBudgets = ledgerBudgets.filter((budget) => budget.yearMonth === yearMonth);
     const previousBudgets = ledgerBudgets.filter((budget) => budget.yearMonth === previousYearMonth);
-    const currentSpending = getCategorySpending(ledgerExpenses, yearMonth);
-    const previousSpending = getCategorySpending(ledgerExpenses, previousYearMonth);
+    const currentSpending = getNetSpendingByCategory(ledgerTransactions, yearMonth);
+    const previousSpending = getNetSpendingByCategory(ledgerTransactions, previousYearMonth);
     const budgetAmount = getMonthlyBudgetAmount(currentBudgets);
     const spentAmount = [...currentSpending.values()].reduce((sum, amount) => sum + amount, 0);
 
@@ -164,15 +161,6 @@ function compareBudgetConfigurations(previous: Budget[], current: Budget[]): Bud
   });
 }
 
-function getCategorySpending(transactions: Transaction[], yearMonth: string): Map<string, number> {
-  const spending = new Map<string, number>();
-  for (const transaction of transactions) {
-    if (toYearMonth(transaction.occurredAt) !== yearMonth) continue;
-    spending.set(transaction.categoryId, (spending.get(transaction.categoryId) ?? 0) + transaction.amount);
-  }
-  return spending;
-}
-
 function compareCategorySpending(previous: Map<string, number>, current: Map<string, number>): SpendingChange[] {
   const categoryIds = [...current.keys(), ...previous.keys()]
     .filter((categoryId, index, all) => all.indexOf(categoryId) === index);
@@ -193,9 +181,4 @@ function getPreviousYearMonth(yearMonth: string): string {
   const [year, month] = yearMonth.split('-').map(Number);
   const previous = new Date(year, month - 2, 1);
   return formatYearMonth(previous.getFullYear(), previous.getMonth() + 1);
-}
-
-function toYearMonth(timestamp: number): string {
-  const date = new Date(timestamp);
-  return formatYearMonth(date.getFullYear(), date.getMonth() + 1);
 }

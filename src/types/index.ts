@@ -1,6 +1,9 @@
 export type TransactionType = 'income' | 'expense' | 'transfer';
+export type TransactionKind = 'refund';
 export type BudgetPeriod = 'monthly' | 'yearly';
 export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+export type FundTransactionType = 'income' | 'expense';
+export type FundTransactionKind = 'record' | 'living-expense-allocation';
 
 export interface Ledger {
   id: string;
@@ -35,6 +38,9 @@ export interface Transaction {
   occurredAt: number;
   createdAt: number;
   recurringRuleId?: string;
+  /** 退款在界面上归入收入入口，但账务上冲减所绑定的原支出。 */
+  kind?: TransactionKind;
+  linkedExpenseTransactionId?: string;
 }
 
 export interface Budget {
@@ -61,6 +67,24 @@ export interface RecurringRule {
   endDate?: number;
   lastGeneratedDate?: number;
   createdAt: number;
+}
+
+/**
+ * 资金账本记录与生活费主账本隔离；仅生活费划拨通过 linkedTransactionId 关联主账本收入。
+ */
+export interface FundTransaction {
+  id: string;
+  ledgerId: string;
+  type: FundTransactionType;
+  category: string;
+  kind: FundTransactionKind;
+  amount: number;
+  note: string;
+  occurredAt: number;
+  createdAt: number;
+  linkedTransactionId?: string;
+  /** 标记关联收入是自动创建还是用户原有记录，决定解除关联时是否级联删除。 */
+  mainIncomeOrigin?: 'auto-created' | 'existing';
 }
 
 /**

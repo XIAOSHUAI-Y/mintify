@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Trash2 } from 'lucide-react';
+import { X, Trash2, Link2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
 import { formatMoney, formatShortDate } from '../utils/helpers';
@@ -12,15 +12,23 @@ interface TransactionDetailProps {
 }
 
 export default function TransactionDetail({ transaction, onClose }: TransactionDetailProps) {
-  const { categories, removeTransaction } = useApp();
+  const { categories, transactions, removeTransaction } = useApp();
   const [showEdit, setShowEdit] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const category = categories.find((c) => c.id === transaction.categoryId);
+  const linkedExpense = transactions.find((item) => item.id === transaction.linkedExpenseTransactionId);
+  const linkedExpenseCategory = categories.find((item) => item.id === linkedExpense?.categoryId);
 
-  const handleDelete = () => {
-    removeTransaction(transaction.id);
-    onClose();
+  const handleDelete = async () => {
+    try {
+      await removeTransaction(transaction.id);
+      onClose();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : '删除失败，请重试');
+      setShowDelete(false);
+    }
   };
 
   if (showEdit) {
@@ -51,7 +59,7 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
           >
             <Icon name={category?.icon || 'more-horizontal'} size={28} />
           </div>
-          <div className="text-lg font-medium mb-1">{category?.name || '未分类'}</div>
+          <div className="text-lg font-medium mb-1">{transaction.kind === 'refund' ? '退款' : category?.name || '未分类'}</div>
           <div
             className={`text-3xl font-bold ${
               transaction.type === 'income'
@@ -70,9 +78,18 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
           <div className="flex justify-between py-2 border-b border-gray-50">
             <span className="text-gray-500">类型</span>
             <span>
-              {transaction.type === 'income' ? '收入' : transaction.type === 'expense' ? '支出' : '转账'}
+              {transaction.kind === 'refund' ? '退款（冲减支出）' : transaction.type === 'income' ? '收入' : transaction.type === 'expense' ? '支出' : '转账'}
             </span>
           </div>
+          {linkedExpense && (
+            <div className="flex items-center justify-between gap-3 border-b border-gray-50 py-2">
+              <span className="flex items-center gap-1.5 text-gray-500"><Link2 size={15} />绑定支出</span>
+              <span className="min-w-0 text-right">
+                <span className="block truncate">{linkedExpense.note || linkedExpenseCategory?.name || '支出账单'}</span>
+                <span className="block text-xs text-slate-400">{formatShortDate(linkedExpense.occurredAt)} · {formatMoney(linkedExpense.amount)}</span>
+              </span>
+            </div>
+          )}
           <div className="flex justify-between py-2 border-b border-gray-50">
             <span className="text-gray-500">日期</span>
             <span>{formatShortDate(transaction.occurredAt)}</span>
@@ -96,6 +113,8 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
             </div>
           )}
         </div>
+
+        {deleteError && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{deleteError}</div>}
 
         <div className="flex gap-3 pt-4">
           <button

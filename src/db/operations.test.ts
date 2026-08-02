@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deleteDB } from 'idb';
-import type { Ledger, Transaction } from '../types';
+import type { FundTransaction, Ledger, Transaction } from '../types';
 import {
   closeDB,
   DB_NAME,
@@ -11,10 +11,12 @@ import {
 } from './index';
 import {
   exportData,
+  getFundTransactions,
   getLedgers,
   getTransactions,
   importData,
   inspectBackup,
+  saveFundTransaction,
   saveLedger,
   saveTransaction,
 } from './operations';
@@ -56,9 +58,9 @@ describe('Mintify 备份恢复', () => {
     });
 
     const backup = await exportData();
-    expect(JSON.parse(backup)).toMatchObject({ schemaVersion: 2 });
+    expect(JSON.parse(backup)).toMatchObject({ schemaVersion: 5 });
     expect(inspectBackup(backup)).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 5,
       ledgers: 1,
       transactions: 1,
     });
@@ -108,5 +110,29 @@ describe('Mintify 备份恢复', () => {
     await expect(importData(brokenBackup, { mode: 'replace' }))
       .rejects.toThrow('备份文件');
     expect(await getLedgers()).toEqual([originalLedger]);
+  });
+
+  it('备份恢复包含独立的资金账本记录', async () => {
+    const fundTransaction: FundTransaction = {
+      id: 'rent-august',
+      ledgerId: 'daily-ledger',
+      type: 'expense',
+      category: '房租',
+      kind: 'record',
+      amount: 12000,
+      note: '第三季度房租',
+      occurredAt: new Date(2026, 7, 1).getTime(),
+      createdAt: 1,
+    };
+    await saveFundTransaction(fundTransaction);
+
+    const backup = await exportData();
+    expect(inspectBackup(backup)).toMatchObject({
+      schemaVersion: 5,
+      fundTransactions: 1,
+    });
+
+    await importData(backup, { mode: 'replace' });
+    expect(await getFundTransactions(fundTransaction.ledgerId)).toEqual([fundTransaction]);
   });
 });
