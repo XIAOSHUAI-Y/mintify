@@ -2,12 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:root:root {
+  /* 提高变量选择器优先级，覆盖组件库默认蓝色并继承 Mintify 暖黄色。 */
+  --adm-color-primary: #d97706;
+  --adm-color-wathet: #fff7d6;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: #111827;
   background: #eef1f5;
+}
+
+.mintify-date-picker {
+  --header-button-font-size: 0.875rem;
+  --title-font-size: 0.875rem;
+  --item-font-size: 1rem;
+}
+
+.adm-picker-popup .adm-popup-body {
+  border-radius: 1.5rem 1.5rem 0 0;
+  box-shadow: 0 -16px 40px rgba(15, 23, 42, 0.12);
+}
+
+.mintify-category-picker .adm-picker-view-mask-middle {
+  border: 1px solid #fbbf24;
+  border-radius: 0.75rem;
+  background: rgba(255, 247, 214, 0.72);
 }
 
 body {

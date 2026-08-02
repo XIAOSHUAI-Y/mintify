@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { PickerView } from 'antd-mobile';
 import { X, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
@@ -281,6 +282,23 @@ function BudgetForm({
   const [amount, setAmount] = useState(budget ? String(budget.amount) : '');
   const [categoryId, setCategoryId] = useState(budget?.categoryId || categories[0]?.id || '');
   const isOverall = budgetType === 'overall';
+  const categoryColumns = useMemo(
+    () => [categories.map((category) => ({
+      value: category.id,
+      label: (
+        <span className="flex items-center justify-center gap-2">
+          <span
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white"
+            style={{ backgroundColor: category.color }}
+          >
+            <Icon name={category.icon} size={14} />
+          </span>
+          <span>{category.name}</span>
+        </span>
+      ),
+    }))],
+    [categories]
+  );
 
   const currentAllocationSummary = useMemo(
     () => currentLedger
@@ -348,15 +366,24 @@ function BudgetForm({
 
         {!isOverall && (
           <>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full p-3 border border-gray-200 rounded-lg mb-3"
-            >
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <div className="mb-3 overflow-hidden rounded-xl border border-slate-100 bg-white px-2">
+              {/* 单列 PickerView 只允许选择一个分类，并直接嵌在弹窗内上下滚动。 */}
+              <PickerView
+                className="mintify-category-picker"
+                columns={categoryColumns}
+                value={categoryId ? [categoryId] : []}
+                onChange={(values) => {
+                  const nextCategoryId = values[0];
+                  if (typeof nextCategoryId === 'string') setCategoryId(nextCategoryId);
+                }}
+                mouseWheel
+                style={{
+                  '--height': '8.25rem',
+                  '--item-height': '2.75rem',
+                  '--item-font-size': '0.9375rem',
+                }}
+              />
+            </div>
 
             <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
               <div className="flex items-center justify-between gap-3 text-sm">

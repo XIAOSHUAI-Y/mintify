@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { DatePicker } from 'antd-mobile';
 import { Calendar, Tag, FileImage, X, FileText } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
@@ -248,25 +249,28 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
         </div>
       </div>
 
-      {/* Date Picker Modal */}
-      {showDatePicker && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-4 w-full max-w-sm">
-            <input
-              type="date"
-              value={new Date(occurredAt).toISOString().split('T')[0]}
-              onChange={(e) => setOccurredAt(new Date(e.target.value).getTime())}
-              className="w-full p-3 border border-gray-200 rounded-lg mb-4"
-            />
-            <button
-              onClick={() => setShowDatePicker(false)}
-              className="w-full py-3 bg-primary rounded-lg font-medium"
-            >
-              完成
-            </button>
-          </div>
-        </div>
-      )}
+      {/* 组件库滚轮选择器在 iOS PWA 中保持一致外观，记账日期只需精确到天。 */}
+      <DatePicker
+        className="mintify-date-picker"
+        visible={showDatePicker}
+        value={new Date(occurredAt)}
+        min={TRANSACTION_DATE_MIN}
+        max={TRANSACTION_DATE_MAX}
+        precision="day"
+        title="选择记账日期"
+        cancelText="取消"
+        confirmText="完成"
+        closeOnMaskClick
+        mouseWheel
+        onClose={() => setShowDatePicker(false)}
+        onConfirm={(date) => setOccurredAt(date.getTime())}
+        renderLabel={(type, value) => {
+          if (type === 'year') return `${value}年`;
+          if (type === 'month') return `${value}月`;
+          if (type === 'day') return `${value}日`;
+          return String(value);
+        }}
+      />
 
       {/* Tag Picker Modal */}
       {showTagPicker && (
@@ -315,3 +319,6 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     </div>
   );
 }
+
+const TRANSACTION_DATE_MIN = new Date(2000, 0, 1);
+const TRANSACTION_DATE_MAX = new Date(2100, 11, 31);
