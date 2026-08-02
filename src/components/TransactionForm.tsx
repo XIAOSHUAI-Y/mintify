@@ -28,6 +28,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   const [tags, setTags] = useState<string[]>(editingTransaction?.tags || []);
   const [photo, setPhoto] = useState(editingTransaction?.photo || '');
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [draftOccurredAt, setDraftOccurredAt] = useState(occurredAt);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
 
@@ -70,6 +71,12 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
 
   const toggleTag = (tag: string) => {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  };
+
+  const openDatePicker = () => {
+    // 弹层内先维护草稿日期，取消操作不能意外改写账单时间。
+    setDraftOccurredAt(occurredAt);
+    setShowDatePicker(true);
   };
 
   const handleSave = (keepOpen = false) => {
@@ -150,7 +157,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       {/* Meta Fields */}
       <div className="mb-4 flex gap-2 overflow-x-auto px-4 pb-1 hide-scrollbar">
         <button
-          onClick={() => setShowDatePicker(true)}
+          onClick={openDatePicker}
           className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
         >
           <Calendar size={16} />
@@ -253,17 +260,28 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       <DatePicker
         className="mintify-date-picker"
         visible={showDatePicker}
-        value={new Date(occurredAt)}
+        value={new Date(draftOccurredAt)}
         min={TRANSACTION_DATE_MIN}
         max={TRANSACTION_DATE_MAX}
         precision="day"
-        title="选择记账日期"
+        title={(
+          <div className="mintify-date-picker-title">
+            <span className="mintify-date-picker-title-icon" aria-hidden="true">
+              <Calendar size={17} strokeWidth={2.25} />
+            </span>
+            <span>
+              <strong>{formatPickerDay(draftOccurredAt)}</strong>
+              <small>{formatPickerYearAndWeekday(draftOccurredAt)}</small>
+            </span>
+          </div>
+        )}
         cancelText="取消"
         confirmText="完成"
         closeOnMaskClick
         mouseWheel
         onClose={() => setShowDatePicker(false)}
         onConfirm={(date) => setOccurredAt(date.getTime())}
+        onSelect={(date) => setDraftOccurredAt(date.getTime())}
         renderLabel={(type, value) => {
           if (type === 'year') return `${value}年`;
           if (type === 'month') return `${value}月`;
@@ -322,3 +340,14 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
 
 const TRANSACTION_DATE_MIN = new Date(2000, 0, 1);
 const TRANSACTION_DATE_MAX = new Date(2100, 11, 31);
+const WEEKDAY_LABELS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+function formatPickerDay(timestamp: number) {
+  const date = new Date(timestamp);
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function formatPickerYearAndWeekday(timestamp: number) {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}年 · ${WEEKDAY_LABELS[date.getDay()]}`;
+}
