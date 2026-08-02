@@ -60,6 +60,7 @@ describe('Mintify 数据库升级', () => {
       id: 'app-settings',
       reminderEnabled: false,
       reminderTime: '21:00',
+      budgetViewByLedger: {},
     });
   });
 

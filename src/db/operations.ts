@@ -368,6 +368,20 @@ export async function getBudgets(ledgerId: string): Promise<Budget[]> {
   return getBudgetsByLedger(ledgerId);
 }
 
+export async function saveBudgetViewPreference(
+  ledgerId: string,
+  preference: AppSettings['budgetViewByLedger'][string],
+): Promise<void> {
+  const settings = await getAppSettings();
+  await saveAppSettings({
+    ...settings,
+    budgetViewByLedger: {
+      ...settings.budgetViewByLedger,
+      [ledgerId]: preference,
+    },
+  });
+}
+
 function getNextYearMonth(yearMonth: string): string {
   const [year, month] = yearMonth.split('-').map(Number);
   return getYearMonth(new Date(year, month, 1).getTime());

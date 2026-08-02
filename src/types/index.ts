@@ -116,5 +116,10 @@ export interface AppSettings {
   legacySettingsMigrated: boolean;
   /** 每个账本最后一次完成预算跨月处理的月份，避免用户删除后被自动恢复。 */
   budgetRolloverMonthByLedger: Record<string, string>;
+  /** 预算页按账本记住上次浏览位置，重新打开 PWA 后仍回到原来的年/月视图。 */
+  budgetViewByLedger: Record<string, {
+    mode: 'month' | 'year';
+    yearMonth: string;
+  }>;
   lastBackupAt?: number;
 }

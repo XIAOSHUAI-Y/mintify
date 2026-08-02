@@ -1,12 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Popover } from 'antd-mobile';
-import { Check, ChevronDown, WalletCards } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import { useConfirmDeletion } from '../context/ConfirmDialogContext';
-import { formatMoney, getYearMonth } from '../utils/helpers';
-import { generateId } from '../utils/helpers';
-import { calculateBudgetAllocationSummary, type BudgetAllocationSummary } from '../domain/budgetAnalytics';
+import { getAppSettings } from '../db';
+import { saveBudgetViewPreference } from '../db/operations';
+import { formatMoney, generateId, getYearMonth } from '../utils/helpers';
+import {
+  buildMonthlyBudgetOverview,
+  calculateBudgetAllocationSummary,
+  type BudgetAllocationSummary,
+  type MonthlyBudgetOverview,
+} from '../domain/budgetAnalytics';
 import { getNetSpendingByCategory } from '../domain/transactionAccounting';
 import type { Budget, Transaction } from '../types';
 
@@ -14,18 +20,58 @@ export default function BudgetPage() {
   const { currentLedger, categories, transactions, budgets, addBudget, updateBudget, removeBudget } = useApp();
   const [creatingBudgetType, setCreatingBudgetType] = useState<'overall' | 'category' | null>(null);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
+  const [selectedYearMonth, setSelectedYearMonth] = useState(() => getYearMonth(Date.now()));
+  const [preferenceLoaded, setPreferenceLoaded] = useState(false);
   const confirmDeletion = useConfirmDeletion();
 
   const currentMonth = getYearMonth(Date.now());
+  const selectedYear = Number(selectedYearMonth.slice(0, 4));
+
+  useEffect(() => {
+    let cancelled = false;
+    setPreferenceLoaded(false);
+    if (!currentLedger) return;
+
+    void getAppSettings().then((settings) => {
+      if (cancelled) return;
+      const preference = settings.budgetViewByLedger[currentLedger.id];
+      if (
+        preference
+        && (preference.mode === 'month' || preference.mode === 'year')
+        && /^\d{4}-(0[1-9]|1[0-2])$/.test(preference.yearMonth)
+      ) {
+        setViewMode(preference.mode);
+        setSelectedYearMonth(preference.yearMonth);
+      } else {
+        setViewMode('month');
+        setSelectedYearMonth(currentMonth);
+      }
+      setPreferenceLoaded(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentLedger, currentMonth]);
+
+  useEffect(() => {
+    if (!currentLedger || !preferenceLoaded) return;
+    // 浏览位置与预算数据一起留在 IndexedDB；短暂延迟避免连续切月产生多次写入。
+    const timer = window.setTimeout(() => {
+      void saveBudgetViewPreference(currentLedger.id, { mode: viewMode, yearMonth: selectedYearMonth });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [currentLedger, preferenceLoaded, selectedYearMonth, viewMode]);
 
   const overallBudget = useMemo(
-    () => budgets.find((b) => b.ledgerId === currentLedger?.id && b.includeOverall && b.yearMonth === currentMonth),
-    [budgets, currentLedger?.id, currentMonth]
+    () => budgets.find((b) => b.ledgerId === currentLedger?.id && b.includeOverall && b.yearMonth === selectedYearMonth),
+    [budgets, currentLedger?.id, selectedYearMonth]
   );
 
   const categoryBudgets = useMemo(
-    () => budgets.filter((b) => b.ledgerId === currentLedger?.id && !b.includeOverall && b.yearMonth === currentMonth),
-    [budgets, currentLedger?.id, currentMonth]
+    () => budgets.filter((b) => b.ledgerId === currentLedger?.id && !b.includeOverall && b.yearMonth === selectedYearMonth),
+    [budgets, currentLedger?.id, selectedYearMonth]
   );
 
   const allocationSummary = useMemo(
@@ -34,20 +80,27 @@ export default function BudgetPage() {
           budgets,
           transactions,
           ledgerId: currentLedger.id,
-          yearMonth: currentMonth,
+          yearMonth: selectedYearMonth,
         })
       : EMPTY_ALLOCATION_SUMMARY,
-    [budgets, currentLedger, currentMonth, transactions]
+    [budgets, currentLedger, selectedYearMonth, transactions]
   );
 
   const spendingByCategory = useMemo(
     () => currentLedger
       ? getNetSpendingByCategory(
           transactions.filter((transaction) => transaction.ledgerId === currentLedger.id),
-          currentMonth,
+          selectedYearMonth,
         )
       : new Map<string, number>(),
-    [currentLedger, currentMonth, transactions],
+    [currentLedger, selectedYearMonth, transactions],
+  );
+
+  const yearlyOverview = useMemo(
+    () => currentLedger
+      ? buildMonthlyBudgetOverview({ budgets, transactions, ledgerId: currentLedger.id, year: selectedYear })
+      : [],
+    [budgets, currentLedger, selectedYear, transactions],
   );
 
   const calculateSpent = (budget: Budget) => {
@@ -57,52 +110,91 @@ export default function BudgetPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 pb-28">
-      <header className="safe-top mb-4">
-        <h1 className="text-2xl font-bold tracking-tight">预算管理</h1>
-        <p className="mt-1 text-sm text-slate-500">{currentMonth.replace('-', '年')}月 · 支出计划</p>
+      <header className="safe-top mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">预算管理</h1>
+          <p className="mt-1 text-sm text-slate-500">按月规划，按年回看</p>
+        </div>
+        <div className="flex rounded-xl bg-slate-200/70 p-1 text-xs font-semibold text-slate-500">
+          {(['month', 'year'] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              aria-pressed={viewMode === mode}
+              className={`rounded-lg px-3 py-2 transition-all ${
+                viewMode === mode ? 'bg-white text-slate-900 shadow-sm' : ''
+              }`}
+            >
+              {mode === 'month' ? '月' : '年'}
+            </button>
+          ))}
+        </div>
       </header>
 
-      <div className="mb-6">
-          <div className="text-sm font-medium mb-2">总预算</div>
-          {overallBudget ? (
-            <BudgetCard
-              budget={overallBudget}
-              spent={calculateSpent(overallBudget)}
-              onClick={() => setEditingBudget(overallBudget)}
-            />
-          ) : (
-            <button
-              onClick={() => setCreatingBudgetType('overall')}
-              className="surface-card w-full border-dashed py-6 text-sm font-medium text-slate-500 active:bg-slate-50"
-            >
-              + 设置本月总预算
-            </button>
-          )}
-        </div>
+      <PeriodNavigator
+        mode={viewMode}
+        yearMonth={selectedYearMonth}
+        isCurrentMonth={selectedYearMonth === currentMonth}
+        onPrevious={() => setSelectedYearMonth((value) => shiftYearMonth(value, viewMode === 'month' ? -1 : -12))}
+        onNext={() => setSelectedYearMonth((value) => shiftYearMonth(value, viewMode === 'month' ? 1 : 12))}
+        onToday={() => setSelectedYearMonth(currentMonth)}
+      />
 
-      <div>
-          <div className="mb-2 text-sm font-medium">分类预算</div>
-          <div className="space-y-3">
-            {categoryBudgets.map((budget) => (
+      {viewMode === 'year' ? (
+        <YearBudgetView
+          overview={yearlyOverview}
+          year={selectedYear}
+          currentYearMonth={currentMonth}
+          onSelectMonth={(yearMonth) => {
+            setSelectedYearMonth(yearMonth);
+            setViewMode('month');
+          }}
+        />
+      ) : (
+        <>
+          <div className="mb-6">
+            <div className="mb-2 text-sm font-medium">总预算</div>
+            {overallBudget ? (
               <BudgetCard
-                key={budget.id}
-                budget={budget}
-                spent={calculateSpent(budget)}
-                category={categories.find((c) => c.id === budget.categoryId)}
-                onClick={() => setEditingBudget(budget)}
+                budget={overallBudget}
+                spent={calculateSpent(overallBudget)}
+                onClick={() => setEditingBudget(overallBudget)}
               />
-            ))}
+            ) : (
+              <button
+                onClick={() => setCreatingBudgetType('overall')}
+                className="surface-card w-full border-dashed py-6 text-sm font-medium text-slate-500 active:bg-slate-50"
+              >
+                + 设置 {Number(selectedYearMonth.slice(5))} 月总预算
+              </button>
+            )}
           </div>
 
-          <BudgetBalanceCard summary={allocationSummary} hasOverallBudget={!!overallBudget} />
+          <div>
+            <div className="mb-2 text-sm font-medium">分类预算</div>
+            <div className="space-y-3">
+              {categoryBudgets.map((budget) => (
+                <BudgetCard
+                  key={budget.id}
+                  budget={budget}
+                  spent={calculateSpent(budget)}
+                  category={categories.find((c) => c.id === budget.categoryId)}
+                  onClick={() => setEditingBudget(budget)}
+                />
+              ))}
+            </div>
 
-          <button
-            onClick={() => setCreatingBudgetType('category')}
-            className="surface-card mt-4 w-full border-dashed py-4 text-sm font-medium text-slate-500 active:bg-slate-50"
-          >
-            + 添加分类预算
-          </button>
-      </div>
+            <BudgetBalanceCard summary={allocationSummary} hasOverallBudget={!!overallBudget} />
+
+            <button
+              onClick={() => setCreatingBudgetType('category')}
+              className="surface-card mt-4 w-full border-dashed py-4 text-sm font-medium text-slate-500 active:bg-slate-50"
+            >
+              + 添加分类预算
+            </button>
+          </div>
+        </>
+      )}
 
       {(creatingBudgetType || editingBudget) && (
         <BudgetForm
@@ -113,7 +205,7 @@ export default function BudgetPage() {
             && (!category.deletedAt || category.id === editingBudget?.categoryId))}
           budgets={budgets}
           transactions={transactions}
-          yearMonth={currentMonth}
+          yearMonth={selectedYearMonth}
           onSave={(budget) => {
             if (editingBudget) {
               updateBudget(budget);
@@ -132,7 +224,7 @@ export default function BudgetPage() {
               ? async () => {
                   const confirmed = await confirmDeletion({
                     title: editingBudget.includeOverall ? '删除总预算' : '删除分类预算',
-                    message: '确定删除这项预算吗？本月已有账单不会被删除。',
+                    message: `确定删除 ${Number(selectedYearMonth.slice(5))} 月的这项预算吗？该月已有账单不会被删除。`,
                   });
                   if (!confirmed) return;
                   await removeBudget(editingBudget.id);
@@ -144,6 +236,167 @@ export default function BudgetPage() {
       )}
     </div>
   );
+}
+
+function PeriodNavigator({
+  mode,
+  yearMonth,
+  isCurrentMonth,
+  onPrevious,
+  onNext,
+  onToday,
+}: {
+  mode: 'month' | 'year';
+  yearMonth: string;
+  isCurrentMonth: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  onToday: () => void;
+}) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  const isCurrentYear = year === new Date().getFullYear();
+  const isCurrentPeriod = mode === 'month' ? isCurrentMonth : isCurrentYear;
+
+  return (
+    <section className="surface-card mb-5 flex items-center gap-2 p-2">
+      <button aria-label={mode === 'month' ? '上个月' : '上一年'} onClick={onPrevious} className="icon-button shrink-0">
+        <ChevronLeft size={19} />
+      </button>
+      <div className="min-w-0 flex-1 text-center">
+        <div className="text-sm font-semibold text-slate-800">
+          {mode === 'month' ? `${year} 年 ${month} 月` : `${year} 年`}
+        </div>
+        <button
+          onClick={onToday}
+          disabled={isCurrentPeriod}
+          className={`mt-0.5 text-[11px] ${isCurrentPeriod ? 'text-slate-400' : 'font-medium text-amber-600'}`}
+        >
+          {isCurrentPeriod ? (mode === 'month' ? '本月' : '本年') : (mode === 'month' ? '回到本月' : '回到本年')}
+        </button>
+      </div>
+      <button aria-label={mode === 'month' ? '下个月' : '下一年'} onClick={onNext} className="icon-button shrink-0">
+        <ChevronRight size={19} />
+      </button>
+    </section>
+  );
+}
+
+function YearBudgetView({
+  overview,
+  year,
+  currentYearMonth,
+  onSelectMonth,
+}: {
+  overview: MonthlyBudgetOverview[];
+  year: number;
+  currentYearMonth: string;
+  onSelectMonth: (yearMonth: string) => void;
+}) {
+  const totalBudget = overview.reduce((sum, month) => sum + month.budgetAmount, 0);
+  const totalSpent = overview.reduce((sum, month) => sum + month.spentAmount, 0);
+  const configuredMonths = overview.filter((month) => month.budgetAmount > 0).length;
+  const overspentMonths = overview.filter((month) => month.status === 'overspent').length;
+
+  return (
+    <div>
+      <section className="mb-4 overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-5 shadow-[0_14px_34px_rgba(245,158,11,0.10)]">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-medium text-amber-800/70">{year} 年预算总览</div>
+            <div className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{formatMoney(totalBudget)}</div>
+          </div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/80 text-amber-600 shadow-sm">
+            <CalendarDays size={20} />
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+          <YearMetric label="已用" value={formatMoney(totalSpent)} />
+          <YearMetric label="已设预算" value={`${configuredMonths} 个月`} />
+          <YearMetric label="超支" value={`${overspentMonths} 个月`} danger={overspentMonths > 0} />
+        </div>
+      </section>
+
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-sm font-medium">每月预算</div>
+        <div className="text-xs text-slate-400">点击月份查看详情</div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {overview.map((month) => (
+          <YearMonthCard
+            key={month.yearMonth}
+            month={month}
+            isCurrent={month.yearMonth === currentYearMonth}
+            isFuture={month.yearMonth > currentYearMonth}
+            onClick={() => onSelectMonth(month.yearMonth)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function YearMetric({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {
+  return (
+    <div className="rounded-xl border border-white/80 bg-white/70 px-2 py-2.5">
+      <div className="text-[10px] text-slate-400">{label}</div>
+      <div className={`mt-1 truncate text-xs font-semibold ${danger ? 'text-rose-500' : 'text-slate-700'}`}>{value}</div>
+    </div>
+  );
+}
+
+function YearMonthCard({
+  month,
+  isCurrent,
+  isFuture,
+  onClick,
+}: {
+  month: MonthlyBudgetOverview;
+  isCurrent: boolean;
+  isFuture: boolean;
+  onClick: () => void;
+}) {
+  const usage = month.utilization === null ? 0 : Math.min(month.utilization, 100);
+  const statusColor = month.status === 'overspent'
+    ? 'text-rose-500'
+    : month.status === 'on-track'
+      ? 'text-emerald-600'
+      : 'text-slate-400';
+
+  return (
+    <button
+      onClick={onClick}
+      className={`surface-card p-3.5 text-left transition-transform active:scale-[0.98] ${
+        isCurrent ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-slate-50' : ''
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-semibold text-slate-800">{month.month} 月</div>
+        <div className={`text-[10px] font-medium ${statusColor}`}>
+          {month.status === 'no-budget'
+            ? '未设置'
+            : month.status === 'overspent'
+              ? `超支 ${Math.round(month.utilization ?? 0)}%`
+              : `已用 ${Math.round(month.utilization ?? 0)}%`}
+        </div>
+      </div>
+      <div className="mt-2 text-sm font-semibold text-slate-700">{formatMoney(month.budgetAmount)}</div>
+      <div className="mt-1 text-[11px] text-slate-400">支出 {formatMoney(month.spentAmount)}</div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div
+          className={`h-full rounded-full ${month.status === 'overspent' ? 'bg-rose-500' : 'bg-emerald-500'}`}
+          style={{ width: `${usage}%` }}
+        />
+      </div>
+      {!isFuture && month.budgetChanges.length > 0 && (
+        <div className="mt-2 text-[10px] font-medium text-amber-600">较上月调整 {month.budgetChanges.length} 项</div>
+      )}
+    </button>
+  );
+}
+
+function shiftYearMonth(yearMonth: string, offset: number): string {
+  const [year, month] = yearMonth.split('-').map(Number);
+  return getYearMonth(new Date(year, month - 1 + offset, 1).getTime());
 }
 
 const EMPTY_ALLOCATION_SUMMARY: BudgetAllocationSummary = {
@@ -227,7 +480,7 @@ function BudgetCard({
               <span className="font-medium">{category.name}</span>
             </>
           ) : (
-            <span className="font-medium">本月总预算</span>
+            <span className="font-medium">{Number(budget.yearMonth.slice(5))} 月总预算</span>
           )}
           <span className="text-sm font-semibold text-slate-500">{formatMoney(budget.amount)}</span>
         </div>

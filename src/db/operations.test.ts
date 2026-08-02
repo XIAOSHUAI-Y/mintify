@@ -24,9 +24,27 @@ import {
   saveFundTransaction,
   saveFundCategory,
   saveCategory,
+  saveBudgetViewPreference,
   saveLedger,
   saveTransaction,
 } from './operations';
+
+describe('预算浏览位置', () => {
+  afterEach(async () => {
+    await closeDB();
+    await deleteDB(DB_NAME);
+  });
+
+  it('按账本把年/月视图与所选月份保存到 IndexedDB', async () => {
+    await saveBudgetViewPreference('daily-ledger', { mode: 'year', yearMonth: '2025-08' });
+    await saveBudgetViewPreference('travel-ledger', { mode: 'month', yearMonth: '2026-01' });
+
+    expect((await getAppSettings()).budgetViewByLedger).toEqual({
+      'daily-ledger': { mode: 'year', yearMonth: '2025-08' },
+      'travel-ledger': { mode: 'month', yearMonth: '2026-01' },
+    });
+  });
+});
 
 describe('分类删除', () => {
   afterEach(async () => {
@@ -161,6 +179,9 @@ describe('Mintify 备份恢复', () => {
       reminderEnabled: true,
       reminderTime: '08:30',
       legacySettingsMigrated: true,
+      budgetViewByLedger: {
+        [ledger.id]: { mode: 'year', yearMonth: '2026-08' },
+      },
     });
 
     const backup = await exportData();
@@ -184,6 +205,9 @@ describe('Mintify 备份恢复', () => {
     expect(await getAppSettings()).toMatchObject({
       reminderEnabled: true,
       reminderTime: '08:30',
+      budgetViewByLedger: {
+        [ledger.id]: { mode: 'year', yearMonth: '2026-08' },
+      },
     });
   });
 
