@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { X, Plus, Repeat2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
+import { useConfirmDeletion } from '../context/ConfirmDialogContext';
 import { generateId, formatMoney, formatShortDate } from '../utils/helpers';
-import type { RecurringRule } from '../types';
+import type { Category, RecurringRule } from '../types';
 
 interface RecurringPageProps {
   onClose: () => void;
@@ -20,6 +21,7 @@ export default function RecurringPage({ onClose }: RecurringPageProps) {
   const { categories, recurringRules, addRecurringRule, updateRecurringRule, removeRecurringRule } = useApp();
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<RecurringRule | null>(null);
+  const confirmDeletion = useConfirmDeletion();
 
   const sortedRules = [...recurringRules].sort((a, b) => b.createdAt - a.createdAt);
 
@@ -95,8 +97,13 @@ export default function RecurringPage({ onClose }: RecurringPageProps) {
           }}
           onDelete={
             editingRule
-              ? () => {
-                  removeRecurringRule(editingRule.id);
+              ? async () => {
+                  const confirmed = await confirmDeletion({
+                    title: '删除周期规则',
+                    message: '删除后将停止自动记账，已经生成的账单仍会保留。',
+                  });
+                  if (!confirmed) return;
+                  await removeRecurringRule(editingRule.id);
                   setEditingRule(null);
                 }
               : undefined
@@ -123,10 +130,10 @@ function RecurringForm({
   onDelete,
 }: {
   rule: RecurringRule | null;
-  categories: { id: string; name: string; icon: string; color: string; type: RecurringRule['type'] }[];
+  categories: Category[];
   onSave: (rule: RecurringRule) => void;
   onCancel: () => void;
-  onDelete?: () => void;
+  onDelete?: () => void | Promise<void>;
 }) {
   const { currentLedger } = useApp();
   const [type, setType] = useState<RecurringRule['type']>(rule?.type || 'expense');
@@ -143,7 +150,8 @@ function RecurringForm({
   );
   const [note, setNote] = useState(rule?.note || '');
 
-  const filteredCategories = categories.filter((c) => c.type === type);
+  const filteredCategories = categories.filter((category) =>
+    category.type === type && (!category.deletedAt || category.id === rule?.categoryId));
 
   useEffect(() => {
     const categoryStillMatchesType = filteredCategories.some((category) => category.id === categoryId);
@@ -267,7 +275,7 @@ function RecurringForm({
         <div className="flex gap-3">
           <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 rounded-xl">取消</button>
           {onDelete && (
-            <button onClick={onDelete} className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl">删除</button>
+            <button onClick={() => void onDelete()} className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl">删除</button>
           )}
           <button onClick={handleSave} className="flex-1 py-3 bg-primary rounded-xl font-medium">保存</button>
         </div>

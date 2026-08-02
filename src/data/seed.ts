@@ -25,6 +25,22 @@ export const INCOME_CATEGORIES: { name: string; icon: string; color: string }[] 
   { name: '其他收入', icon: 'plus-circle', color: '#6B7280' },
 ];
 
+export const FUND_INCOME_CATEGORIES: { name: string; icon: string; color: string }[] = [
+  { name: '工资', icon: 'banknote', color: '#10B981' },
+  { name: '奖金', icon: 'gift', color: '#14B8A6' },
+  { name: '红包', icon: 'mail', color: '#EF4444' },
+  { name: '投资收入', icon: 'trending-up', color: '#3B82F6' },
+  { name: '其他收入', icon: 'receipt-text', color: '#64748B' },
+];
+
+export const FUND_EXPENSE_CATEGORIES: { name: string; icon: string; color: string }[] = [
+  { name: '车贷', icon: 'car', color: '#3B82F6' },
+  { name: '房租', icon: 'home', color: '#8B5CF6' },
+  { name: '京东白条', icon: 'shopping-bag', color: '#F43F5E' },
+  { name: '花呗', icon: 'credit-card', color: '#06B6D4' },
+  { name: '其他支出', icon: 'receipt-text', color: '#64748B' },
+];
+
 export const PRESET_TAGS: string[] = [
   '必需品', '外卖', '聚餐', '通勤', '打车', '网购', '超市', '水果',
   '奶茶', '咖啡', '早餐', '午餐', '晚餐', '零食', '话费', '水电煤',
@@ -32,9 +48,15 @@ export const PRESET_TAGS: string[] = [
 ];
 
 export const APP_ICONS: string[] = [
-  'book', 'wallet', 'credit-card', 'dollar-sign',
-  'pie-chart', 'list', 'calendar', 'shopping-bag', 'shopping-cart',
-  'home', 'car', 'plane', 'graduation-cap', 'heart', 'star'
+  'book', 'wallet', 'wallet-cards', 'credit-card', 'banknote',
+  'circle-dollar-sign', 'hand-coins', 'piggy-bank', 'landmark', 'receipt-text',
+  'arrow-left-right', 'repeat-2', 'gift', 'mail', 'battery-charging',
+  'zap', 'paw-print', 'car', 'bus', 'train',
+  'plane-takeoff', 'fuel', 'home', 'lightbulb', 'wifi',
+  'droplets', 'smartphone', 'shopping-bag', 'shopping-cart', 'package',
+  'utensils', 'coffee', 'dumbbell', 'heart-pulse', 'briefcase-medical',
+  'graduation-cap', 'book-open', 'gamepad-2', 'baby', 'shirt',
+  'phone', 'calendar', 'more-horizontal',
 ];
 
 export const APP_COLORS: string[] = [

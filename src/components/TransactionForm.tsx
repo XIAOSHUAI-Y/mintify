@@ -3,6 +3,7 @@ import { DatePicker } from 'antd-mobile';
 import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
+import HorizontalScrollArea from './HorizontalScrollArea';
 import { generateId, formatMoney, formatShortDate } from '../utils/helpers';
 import { PRESET_TAGS } from '../data/seed';
 import type { Transaction } from '../types';
@@ -42,9 +43,12 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
 
   const filteredCategories = useMemo(
     () => categories
-      .filter((category) => category.type === type && category.name !== '退款')
+      .filter((category) =>
+        category.type === type
+        && category.name !== '退款'
+        && (!category.deletedAt || category.id === editingTransaction?.categoryId))
       .sort((a, b) => a.sortOrder - b.sortOrder),
-    [categories, type]
+    [categories, editingTransaction?.categoryId, type]
   );
 
   const refundCategory = useMemo(
@@ -228,7 +232,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       )}
 
       {/* Meta Fields */}
-      <div className="mb-4 flex gap-2 overflow-x-auto px-4 pb-1 hide-scrollbar">
+      <HorizontalScrollArea className="mb-4 flex gap-2 overflow-x-auto px-4 pb-1 pr-10">
         <button
           onClick={openDatePicker}
           className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
@@ -255,7 +259,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
           {photo ? '已选图片' : '图片'}
           <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
         </label>
-      </div>
+      </HorizontalScrollArea>
 
       {photo && (
         <div className="px-4 mb-4">

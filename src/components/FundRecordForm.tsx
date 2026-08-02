@@ -1,21 +1,15 @@
 import { useMemo, useState } from 'react';
 import { DatePicker } from 'antd-mobile';
 import {
-  Banknote,
   CalendarDays,
-  Car,
   ChevronDown,
-  CreditCard,
-  Gift,
-  House,
-  ReceiptText,
-  ShoppingBag,
   Trash2,
   WalletCards,
   X,
 } from 'lucide-react';
+import { Icon } from './Icon';
 import { generateId } from '../utils/helpers';
-import type { Category, FundTransaction, Transaction } from '../types';
+import type { Category, FundCategory, FundTransaction, Transaction } from '../types';
 
 export type FundRecordFormMode = 'income' | 'expense' | 'allocation';
 
@@ -26,25 +20,12 @@ interface FundRecordFormProps {
   record?: FundTransaction | null;
   existingIncomes?: Transaction[];
   ledgerCategories?: Category[];
+  fundCategories?: FundCategory[];
   onSave: (record: FundTransaction) => void | Promise<void>;
   onLinkExisting?: (transaction: Transaction) => void | Promise<void>;
   onCancel: () => void;
   onDelete?: () => void | Promise<void>;
 }
-
-const INCOME_CATEGORIES = [
-  { name: '工资', icon: Banknote, color: 'bg-emerald-500' },
-  { name: '奖金', icon: Gift, color: 'bg-teal-500' },
-  { name: '其他收入', icon: ReceiptText, color: 'bg-sky-500' },
-];
-
-const EXPENSE_CATEGORIES = [
-  { name: '车贷', icon: Car, color: 'bg-blue-500' },
-  { name: '房租', icon: House, color: 'bg-violet-500' },
-  { name: '京东白条', icon: ShoppingBag, color: 'bg-rose-500' },
-  { name: '花呗', icon: CreditCard, color: 'bg-cyan-500' },
-  { name: '其他支出', icon: ReceiptText, color: 'bg-slate-500' },
-];
 
 export default function FundRecordForm({
   mode,
@@ -53,15 +34,26 @@ export default function FundRecordForm({
   record,
   existingIncomes = [],
   ledgerCategories = [],
+  fundCategories = [],
   onSave,
   onLinkExisting,
   onCancel,
   onDelete,
 }: FundRecordFormProps) {
-  const categories = mode === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const categories = useMemo(() => fundCategories
+    .filter((item) =>
+      item.type === mode
+      && (!item.deletedAt || item.id === record?.categoryId || item.name === record?.category))
+    .sort((a, b) => a.sortOrder - b.sortOrder),
+  [fundCategories, mode, record?.category, record?.categoryId]);
   const [amount, setAmount] = useState(record ? String(record.amount) : '');
-  const [category, setCategory] = useState(
-    mode === 'allocation' ? '生活费' : record?.category || categories[0].name,
+  const [categoryId, setCategoryId] = useState(
+    mode === 'allocation'
+      ? ''
+      : record?.categoryId
+        || categories.find((item) => item.name === record?.category)?.id
+        || categories[0]?.id
+        || '',
   );
   const [note, setNote] = useState(record?.note || '');
   const [occurredAt, setOccurredAt] = useState(record?.occurredAt || getDefaultDate(monthDate));
@@ -77,15 +69,17 @@ export default function FundRecordForm({
   const linkingExisting = mode === 'allocation' && allocationSource === 'existing';
   const existingBindingLocked = linkingExisting && !!record;
   const selectedIncome = existingIncomes.find((transaction) => transaction.id === selectedIncomeId);
-  const canSave = linkingExisting ? existingBindingLocked || !!selectedIncome : amountValid;
+  const canSave = linkingExisting
+    ? existingBindingLocked || !!selectedIncome
+    : amountValid && (mode === 'allocation' || !!categoryId);
   const title = record
     ? `编辑${mode === 'allocation' ? '生活费' : '资金记录'}`
     : mode === 'allocation'
       ? '划拨生活费'
       : `新增${mode === 'income' ? '收入' : '支出'}`;
   const selectedCategoryMeta = useMemo(
-    () => categories.find((item) => item.name === category),
-    [categories, category],
+    () => categories.find((item) => item.id === categoryId),
+    [categories, categoryId],
   );
 
   const handleSave = async () => {
@@ -103,7 +97,8 @@ export default function FundRecordForm({
       id: record?.id || generateId(),
       ledgerId,
       type: mode === 'income' ? 'income' : 'expense',
-      category: mode === 'allocation' ? '生活费' : category,
+      category: mode === 'allocation' ? '生活费' : selectedCategoryMeta?.name || record?.category || '未分类',
+      categoryId: mode === 'allocation' ? undefined : selectedCategoryMeta?.id,
       kind: mode === 'allocation' ? 'living-expense-allocation' : 'record',
       amount: parsedAmount,
       note: note.trim(),
@@ -209,20 +204,19 @@ export default function FundRecordForm({
               <div className="mb-2 text-xs font-medium text-slate-500">类型</div>
               <div className="grid grid-cols-2 gap-2">
                 {categories.map((item) => {
-                  const CategoryIcon = item.icon;
-                  const selected = category === item.name;
+                  const selected = categoryId === item.id;
                   return (
                     <button
-                      key={item.name}
-                      onClick={() => setCategory(item.name)}
+                      key={item.id}
+                      onClick={() => setCategoryId(item.id)}
                       className={`flex min-h-14 items-center gap-3 rounded-2xl border px-3 text-left transition-colors ${
                         selected
                           ? 'border-amber-300 bg-amber-50 text-amber-900'
                           : 'border-slate-200 bg-white text-slate-600'
                       }`}
                     >
-                      <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-white ${item.color}`}>
-                        <CategoryIcon size={18} />
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ backgroundColor: item.color }}>
+                        <Icon name={item.icon} size={18} />
                       </span>
                       <span className="text-sm font-medium">{item.name}</span>
                     </button>
@@ -259,7 +253,7 @@ export default function FundRecordForm({
             <input
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder={mode === 'allocation' ? '例如：8月生活费' : `例如：${selectedCategoryMeta?.name || category}`}
+              placeholder={mode === 'allocation' ? '例如：8月生活费' : `例如：${selectedCategoryMeta?.name || '资金记录'}`}
               className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
             />
           </label>

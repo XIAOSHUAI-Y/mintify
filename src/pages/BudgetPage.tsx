@@ -1,22 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Popover } from 'antd-mobile';
-import { Check, ChevronDown, X, WalletCards } from 'lucide-react';
+import { Check, ChevronDown, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
+import { useConfirmDeletion } from '../context/ConfirmDialogContext';
 import { formatMoney, getYearMonth } from '../utils/helpers';
 import { generateId } from '../utils/helpers';
 import { calculateBudgetAllocationSummary, type BudgetAllocationSummary } from '../domain/budgetAnalytics';
 import { getNetSpendingByCategory } from '../domain/transactionAccounting';
 import type { Budget, Transaction } from '../types';
 
-interface BudgetPageProps {
-  onClose: () => void;
-}
-
-export default function BudgetPage({ onClose }: BudgetPageProps) {
+export default function BudgetPage() {
   const { currentLedger, categories, transactions, budgets, addBudget, updateBudget, removeBudget } = useApp();
   const [creatingBudgetType, setCreatingBudgetType] = useState<'overall' | 'category' | null>(null);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const confirmDeletion = useConfirmDeletion();
 
   const currentMonth = getYearMonth(Date.now());
 
@@ -58,17 +56,13 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
   };
 
   return (
-    <div className="mobile-overlay">
-      <div className="mobile-toolbar">
-        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600"><X size={20} /></button>
-        <div className="font-semibold">预算管理</div>
-        <div className="h-10 w-10" aria-hidden="true" />
-      </div>
+    <div className="min-h-screen bg-slate-50 px-4 pb-28">
+      <header className="safe-top mb-4">
+        <h1 className="text-2xl font-bold tracking-tight">预算管理</h1>
+        <p className="mt-1 text-sm text-slate-500">{currentMonth.replace('-', '年')}月 · 支出计划</p>
+      </header>
 
-      <div className="flex-1 overflow-y-auto p-4 pb-8">
-        <div className="mb-4 text-sm font-medium text-slate-500">{currentMonth.replace('-', '年')}月 · 支出计划</div>
-
-        <div className="mb-6">
+      <div className="mb-6">
           <div className="text-sm font-medium mb-2">总预算</div>
           {overallBudget ? (
             <BudgetCard
@@ -86,7 +80,7 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
           )}
         </div>
 
-        <div>
+      <div>
           <div className="mb-2 text-sm font-medium">分类预算</div>
           <div className="space-y-3">
             {categoryBudgets.map((budget) => (
@@ -108,14 +102,15 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
           >
             + 添加分类预算
           </button>
-        </div>
       </div>
 
       {(creatingBudgetType || editingBudget) && (
         <BudgetForm
           budget={editingBudget}
           budgetType={editingBudget?.includeOverall ? 'overall' : creatingBudgetType || 'category'}
-          categories={categories.filter((c) => c.type === 'expense')}
+          categories={categories.filter((category) =>
+            category.type === 'expense'
+            && (!category.deletedAt || category.id === editingBudget?.categoryId))}
           budgets={budgets}
           transactions={transactions}
           yearMonth={currentMonth}
@@ -134,8 +129,13 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
           }}
           onDelete={
             editingBudget
-              ? () => {
-                  removeBudget(editingBudget.id);
+              ? async () => {
+                  const confirmed = await confirmDeletion({
+                    title: editingBudget.includeOverall ? '删除总预算' : '删除分类预算',
+                    message: '确定删除这项预算吗？本月已有账单不会被删除。',
+                  });
+                  if (!confirmed) return;
+                  await removeBudget(editingBudget.id);
                   setEditingBudget(null);
                 }
               : undefined
@@ -274,7 +274,7 @@ function BudgetForm({
   yearMonth: string;
   onSave: (budget: Budget) => void;
   onCancel: () => void;
-  onDelete?: () => void;
+  onDelete?: () => void | Promise<void>;
 }) {
   const { currentLedger } = useApp();
   const [amount, setAmount] = useState(budget ? String(budget.amount) : '');
@@ -369,7 +369,7 @@ function BudgetForm({
               trigger="click"
               placement="bottom-start"
               content={(
-                <div className="mintify-budget-category-options hide-scrollbar">
+                <div className="mintify-budget-category-options">
                   {categories.map((category) => {
                     const selected = category.id === categoryId;
                     return (
@@ -454,7 +454,7 @@ function BudgetForm({
         <div className="flex gap-3">
           <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 rounded-xl">取消</button>
           {onDelete && (
-            <button onClick={onDelete} className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl">删除</button>
+            <button onClick={() => void onDelete()} className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl">删除</button>
           )}
           <button onClick={handleSave} className="flex-1 py-3 bg-primary rounded-xl font-medium">保存</button>
         </div>

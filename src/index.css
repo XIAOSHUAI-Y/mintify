@@ -13,6 +13,23 @@
   background: #eef1f5;
 }
 
+html,
+body {
+  /* 移动端只保留横纵滚动，禁用双击与双指页面缩放。 */
+  touch-action: pan-x pan-y;
+}
+
+/* iOS Safari 会在字号小于 16px 的表单项聚焦时自动放大。
+ * :where 保持零优先级，让金额输入框等显式字号工具类仍可正常覆盖。 */
+:where(input:not([type='checkbox']):not([type='radio']):not([type='file']), textarea, select) {
+  font-size: 16px;
+}
+
+.mintify-delete-dialog .adm-dialog-button:last-child {
+  color: #e11d48;
+  font-weight: 600;
+}
+
 .mintify-date-picker {
   --header-button-font-size: 0.875rem;
   --title-font-size: 0.875rem;
@@ -310,11 +327,67 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
+/* iPhone/触屏设备保留系统的瞬时 overlay 指示器；鼠标环境才提供可拖拽的细胶囊。
+ * 轨道始终透明，避免滚动区域旁常驻一条与内容争抢注意力的“进度槽”。 */
+@media (hover: hover) and (pointer: fine) {
+  * {
+    scrollbar-color: rgba(100, 116, 139, 0.42) transparent;
+    scrollbar-width: thin;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background: rgba(100, 116, 139, 0.34);
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(71, 85, 105, 0.58);
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-button {
+    display: none;
+  }
 }
 
-.hide-scrollbar {
-  -ms-overflow-style: none;
+/* 横向内容通过“下一项露出 + 边缘渐隐”表达可继续滑动，避免额外放一条常驻滚动轨道。 */
+.horizontal-scroll-hint {
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
   scrollbar-width: none;
+}
+
+.horizontal-scroll-hint[data-scroll-edges='start'] {
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 1.5rem), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 1.5rem), transparent 100%);
+}
+
+.horizontal-scroll-hint[data-scroll-edges='middle'] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 1.5rem), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 calc(100% - 1.5rem), transparent);
+}
+
+.horizontal-scroll-hint[data-scroll-edges='end'] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 100%);
+  mask-image: linear-gradient(to right, transparent, #000 1.5rem, #000 100%);
+}
+
+.horizontal-scroll-hint > * {
+  scroll-snap-align: start;
+}
+
+.horizontal-scroll-hint::-webkit-scrollbar {
+  display: none;
 }

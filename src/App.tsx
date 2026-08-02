@@ -7,17 +7,29 @@ import BudgetPage from './pages/BudgetPage';
 import TransactionForm from './components/TransactionForm';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 
-export type TabType = 'home' | 'reports' | 'settings';
+export type TabType = 'home' | 'reports' | 'budget' | 'settings';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [showForm, setShowForm] = useState(false);
-  const [showBudget, setShowBudget] = useState(false);
 
   useEffect(() => {
-    // 三个主页面共用 document 滚动容器，切换 Tab 时必须重置位置，避免新页面从半屏开始。
+    // 四个主页面共用 document 滚动容器，切换 Tab 时必须重置位置，避免新页面从半屏开始。
     window.scrollTo({ top: 0, behavior: 'auto' });
   }, [activeTab]);
+
+  useEffect(() => {
+    // iOS 的 gesture 事件不受普通 touch-action 完整约束，单独阻止双指缩放手势。
+    const preventPageZoom = (event: Event) => event.preventDefault();
+    document.addEventListener('gesturestart', preventPageZoom, { passive: false });
+    document.addEventListener('gesturechange', preventPageZoom, { passive: false });
+    document.addEventListener('gestureend', preventPageZoom, { passive: false });
+    return () => {
+      document.removeEventListener('gesturestart', preventPageZoom);
+      document.removeEventListener('gesturechange', preventPageZoom);
+      document.removeEventListener('gestureend', preventPageZoom);
+    };
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -25,6 +37,8 @@ function App() {
         return <HomePage />;
       case 'reports':
         return <ReportsPage />;
+      case 'budget':
+        return <BudgetPage />;
       case 'settings':
         return <SettingsPage />;
       default:
@@ -39,8 +53,6 @@ function App() {
       {showForm && (
         <TransactionForm onClose={() => setShowForm(false)} />
       )}
-
-      {showBudget && <BudgetPage onClose={() => setShowBudget(false)} />}
 
       <PwaUpdatePrompt />
 
@@ -80,8 +92,11 @@ function App() {
           </button>
 
           <button
-            onClick={() => setShowBudget(true)}
-            className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs text-slate-500 transition-colors active:bg-amber-50 active:text-amber-700"
+            onClick={() => setActiveTab('budget')}
+            aria-current={activeTab === 'budget' ? 'page' : undefined}
+            className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${
+              activeTab === 'budget' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
+            }`}
           >
             <WalletCards size={21} />
             <span>预算</span>
