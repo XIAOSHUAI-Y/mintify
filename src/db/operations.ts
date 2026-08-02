@@ -3,6 +3,7 @@ import type {
   Budget,
   Category,
   FundTransaction,
+  FundCategory,
   Ledger,
   RecurringRule,
   Transaction,
@@ -22,6 +23,7 @@ import {
   getCategoriesByLedger,
   getDB,
   getFundTransactionsByLedger,
+  getFundCategoriesByLedger,
   getById,
   getRecurringRulesByLedger,
   getTransactionsByLedger,
@@ -29,7 +31,12 @@ import {
   migrateLegacySettings,
   saveAppSettings,
 } from './index';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../data/seed';
+import {
+  EXPENSE_CATEGORIES,
+  FUND_EXPENSE_CATEGORIES,
+  FUND_INCOME_CATEGORIES,
+  INCOME_CATEGORIES,
+} from '../data/seed';
 import { generateId, getDayEnd, getDayStart, getMonthEnd, getMonthStart, getYearMonth } from '../utils/helpers';
 import { APP_VERSION } from '../pwa/app-version';
 
@@ -99,6 +106,33 @@ export async function ensureRefundCategory(ledgerId: string): Promise<Category> 
   return refundCategory;
 }
 
+/** 已删除的内置项也算“已初始化”，否则应用刷新后会把用户删掉的分类重新创建。 */
+export async function ensureFundCategories(ledgerId: string): Promise<void> {
+  const existing = await getFundCategoriesByLedger(ledgerId);
+  const presets = [
+    ...FUND_INCOME_CATEGORIES.map((item) => ({ ...item, type: 'income' as const })),
+    ...FUND_EXPENSE_CATEGORIES.map((item) => ({ ...item, type: 'expense' as const })),
+  ];
+
+  for (const [index, preset] of presets.entries()) {
+    const matching = existing.filter((item) => item.type === preset.type && item.name === preset.name);
+    if (matching.length > 0) {
+      // 早期开发版本可能因并发初始化产生重复项；只停用多余项，历史记录仍能按旧 ID 找到元数据。
+      const active = matching.filter((item) => !item.deletedAt);
+      for (const duplicate of active.slice(1)) await deleteFundCategory(duplicate.id);
+      continue;
+    }
+    await saveFundCategory({
+      // 稳定主键让 React StrictMode 或多窗口并发初始化最终落到同一条记录。
+      id: `fund-category:${ledgerId}:${preset.type}:${encodeURIComponent(preset.name)}`,
+      ledgerId,
+      ...preset,
+      sortOrder: index,
+      isBuiltIn: true,
+    });
+  }
+}
+
 // Ledgers
 export async function getLedgers(): Promise<Ledger[]> {
   const ledgers = await getAll<Ledger>('ledgers');
@@ -126,6 +160,8 @@ export async function deleteLedger(ledgerId: string): Promise<void> {
   for (const r of rules) await deleteItem('recurringRules', r.id);
   const fundTransactions = await getFundTransactionsByLedger(ledgerId);
   for (const transaction of fundTransactions) await deleteFundTransaction(transaction.id);
+  const fundCategories = await getFundCategoriesByLedger(ledgerId);
+  for (const category of fundCategories) await deleteItem('fundCategories', category.id);
 }
 
 export async function setDefaultLedger(ledgerId: string): Promise<void> {
@@ -142,7 +178,25 @@ export async function saveCategory(category: Category): Promise<void> {
 }
 
 export async function deleteCategory(categoryId: string): Promise<void> {
-  await deleteItem('categories', categoryId);
+  const category = await getById<Category>('categories', categoryId);
+  if (!category) return;
+  await putItem('categories', { ...category, deletedAt: Date.now() });
+}
+
+// Fund categories
+export async function saveFundCategory(category: FundCategory): Promise<void> {
+  await putItem('fundCategories', category);
+}
+
+export async function getFundCategories(ledgerId: string): Promise<FundCategory[]> {
+  const categories = await getFundCategoriesByLedger(ledgerId);
+  return categories.sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+export async function deleteFundCategory(categoryId: string): Promise<void> {
+  const category = await getById<FundCategory>('fundCategories', categoryId);
+  if (!category) return;
+  await putItem('fundCategories', { ...category, deletedAt: Date.now() });
 }
 
 // Transactions
@@ -494,7 +548,7 @@ export function calculateBudgetSpent(
   return budget.categoryId ? spending.get(budget.categoryId) ?? 0 : 0;
 }
 
-const BACKUP_SCHEMA_VERSION = 5;
+const BACKUP_SCHEMA_VERSION = 6;
 
 interface BackupData {
   ledgers: Ledger[];
@@ -502,6 +556,7 @@ interface BackupData {
   transactions: Transaction[];
   budgets: Budget[];
   recurringRules: RecurringRule[];
+  fundCategories: FundCategory[];
   fundTransactions: FundTransaction[];
   settings: AppSettings[];
 }
@@ -547,7 +602,7 @@ function parseBackup(json: string): BackupData {
 
   let rawData: Record<string, unknown>;
   if ('schemaVersion' in parsed) {
-    if (![2, 3, 4, BACKUP_SCHEMA_VERSION].includes(parsed.schemaVersion as number)) {
+    if (![2, 3, 4, 5, BACKUP_SCHEMA_VERSION].includes(parsed.schemaVersion as number)) {
       throw new Error(`备份文件版本不受支持：${String(parsed.schemaVersion)}`);
     }
     if (!isRecord(parsed.data)) throw new Error('备份文件缺少 data 字段');
@@ -578,6 +633,15 @@ function parseBackup(json: string): BackupData {
     && hasString(item, 'ledgerId')
     && hasString(item, 'categoryId')
     && hasNumber(item, 'amount'));
+  const fundCategories = rawData.fundCategories === undefined
+    ? []
+    : validateRecords<FundCategory>(rawData.fundCategories, '资金分类', (item) =>
+      hasString(item, 'id')
+      && hasString(item, 'ledgerId')
+      && hasString(item, 'name')
+      && hasString(item, 'icon')
+      && hasString(item, 'color')
+      && (item.type === 'income' || item.type === 'expense'));
   const fundTransactions = rawData.fundTransactions === undefined
     ? []
     : validateRecords<FundTransaction>(rawData.fundTransactions, '资金记录', (item) =>
@@ -604,6 +668,7 @@ function parseBackup(json: string): BackupData {
     transactions,
     budgets,
     recurringRules,
+    fundCategories,
     fundTransactions,
     settings,
   };
@@ -635,6 +700,7 @@ export interface ImportResult {
   transactions: number;
   budgets: number;
   recurringRules: number;
+  fundCategories: number;
   fundTransactions: number;
 }
 
@@ -653,6 +719,7 @@ export function inspectBackup(json: string): BackupPreview {
     transactions: data.transactions.length,
     budgets: data.budgets.length,
     recurringRules: data.recurringRules.length,
+    fundCategories: data.fundCategories.length,
     fundTransactions: data.fundTransactions.length,
   };
   if (typeof parsed.exportedAt === 'number') preview.exportedAt = parsed.exportedAt;
@@ -674,6 +741,7 @@ export async function exportData(): Promise<string> {
       transactions: await getAll<Transaction>('transactions'),
       budgets: await getAll<Budget>('budgets'),
       recurringRules: await getAll<RecurringRule>('recurringRules'),
+      fundCategories: await getAll<FundCategory>('fundCategories'),
       fundTransactions: await getAll<FundTransaction>('fundTransactions'),
       settings: [settings],
     },
@@ -694,6 +762,7 @@ export async function importData(
     'transactions',
     'budgets',
     'recurringRules',
+    'fundCategories',
     'fundTransactions',
     'settings',
   ] as const;
@@ -711,6 +780,7 @@ export async function importData(
   for (const item of data.transactions) await transaction.objectStore('transactions').put(item);
   for (const item of data.budgets) await transaction.objectStore('budgets').put(item);
   for (const item of data.recurringRules) await transaction.objectStore('recurringRules').put(item);
+  for (const item of data.fundCategories) await transaction.objectStore('fundCategories').put(item);
   for (const item of data.fundTransactions) await transaction.objectStore('fundTransactions').put(item);
   for (const item of data.settings) await transaction.objectStore('settings').put(item);
   await transaction.done;
@@ -721,6 +791,7 @@ export async function importData(
     transactions: data.transactions.length,
     budgets: data.budgets.length,
     recurringRules: data.recurringRules.length,
+    fundCategories: data.fundCategories.length,
     fundTransactions: data.fundTransactions.length,
   };
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChevronRight, Download, Upload, Bell, BookOpen, Tag, RefreshCw, HardDrive } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
+import { useConfirmDeletion } from '../context/ConfirmDialogContext';
 import {
   exportData,
   importData,
@@ -292,6 +293,7 @@ export default function SettingsPage() {
               <div>交易：{pendingImport.preview.transactions} 条</div>
               <div>分类：{pendingImport.preview.categories} 个</div>
               <div>资金记录：{pendingImport.preview.fundTransactions} 条</div>
+              <div>资金分类：{pendingImport.preview.fundCategories} 个</div>
             </div>
             <div className="text-xs text-orange-600 mt-3">
               覆盖恢复会先清除当前数据；操作在同一事务中完成，失败时自动回滚。
@@ -370,6 +372,7 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingLedger, setEditingLedger] = useState<Ledger | null>(null);
   const [name, setName] = useState('');
+  const confirmDeletion = useConfirmDeletion();
 
   const handleSave = () => {
     if (!name) return;
@@ -389,6 +392,15 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
     setName('');
     setShowAdd(false);
     setEditingLedger(null);
+  };
+
+  const handleDelete = async (ledger: Ledger) => {
+    const confirmed = await confirmDeletion({
+      title: '删除账本',
+      message: `确定删除“${ledger.name}”吗？其中的账单、预算、周期规则和资金记录都会一并删除，且无法恢复。`,
+    });
+    if (!confirmed) return;
+    await removeLedger(ledger.id);
   };
 
   return (
@@ -433,7 +445,7 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
               </button>
               {ledgers.length > 1 && (
                 <button
-                  onClick={() => removeLedger(ledger.id)}
+                  onClick={() => void handleDelete(ledger)}
                   className="text-sm text-red-500"
                 >
                   删除
@@ -478,6 +490,7 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
 function TagManager({ onClose }: { onClose: () => void }) {
   const [tags, setTags] = useState<string[]>([...DEFAULT_APP_SETTINGS.presetTags]);
   const [newTag, setNewTag] = useState('');
+  const confirmDeletion = useConfirmDeletion();
 
   useEffect(() => {
     void getAppSettings().then((saved) => setTags(saved.presetTags));
@@ -496,6 +509,11 @@ function TagManager({ onClose }: { onClose: () => void }) {
   };
 
   const removeTag = async (tag: string) => {
+    const confirmed = await confirmDeletion({
+      title: '删除常用标签',
+      message: `确定删除“${tag}”吗？已经保存到账单上的标签不会受影响。`,
+    });
+    if (!confirmed) return;
     await saveTags(tags.filter((t) => t !== tag));
   };
 

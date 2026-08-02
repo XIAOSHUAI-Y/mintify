@@ -15,19 +15,18 @@ import {
   ArrowUpFromLine,
   Banknote,
   BarChart3,
-  Car,
   ChevronLeft,
   ChevronRight,
-  CreditCard,
-  House,
   List,
-  ReceiptText,
-  ShoppingBag,
+  Tags,
   WalletCards,
   X,
 } from 'lucide-react';
+import { Icon } from '../components/Icon';
+import { useConfirmDeletion } from '../context/ConfirmDialogContext';
 import { useApp } from '../context/AppContext';
 import FundRecordForm, { type FundRecordFormMode } from '../components/FundRecordForm';
+import FundCategoryPage from './FundCategoryPage';
 import {
   buildFundExpenseBreakdown,
   buildFundMonthlyTrend,
@@ -35,26 +34,17 @@ import {
 } from '../domain/fundLedger';
 import { isRefund } from '../domain/transactionAccounting';
 import { formatMoney, getYearMonth } from '../utils/helpers';
-import type { FundTransaction } from '../types';
+import type { FundCategory, FundTransaction } from '../types';
 
 interface FundPageProps {
   onClose: () => void;
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  生活费: '#F59E0B',
-  车贷: '#3B82F6',
-  房租: '#8B5CF6',
-  京东白条: '#F43F5E',
-  花呗: '#06B6D4',
-  工资: '#10B981',
-  奖金: '#14B8A6',
-};
-
 export default function FundPage({ onClose }: FundPageProps) {
   const {
     currentLedger,
     categories,
+    fundCategories,
     fundTransactions,
     transactions,
     linkExistingLivingExpenseAllocation,
@@ -66,6 +56,8 @@ export default function FundPage({ onClose }: FundPageProps) {
   const [view, setView] = useState<'records' | 'charts'>('records');
   const [formMode, setFormMode] = useState<FundRecordFormMode | null>(null);
   const [editingRecord, setEditingRecord] = useState<FundTransaction | null>(null);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const confirmDeletion = useConfirmDeletion();
   const selectedYearMonth = getYearMonth(selectedDate.getTime());
   const monthTransactions = useMemo(
     () => fundTransactions
@@ -120,7 +112,13 @@ export default function FundPage({ onClose }: FundPageProps) {
           <div className="text-center font-semibold">资金</div>
           <div className="mt-0.5 text-[10px] text-slate-400">工资与固定支出</div>
         </div>
-        <span className="h-11 w-11" />
+        <button
+          aria-label="管理资金分类"
+          onClick={() => setShowCategoryManager(true)}
+          className="icon-button text-amber-700"
+        >
+          <Tags size={20} />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto bg-slate-50 p-4 pb-8">
@@ -213,6 +211,7 @@ export default function FundPage({ onClose }: FundPageProps) {
                     <FundTransactionRow
                       key={transaction.id}
                       transaction={transaction}
+                      categories={fundCategories}
                       onClick={() => openForm(getMode(transaction), transaction)}
                     />
                   ))}
@@ -225,6 +224,7 @@ export default function FundPage({ onClose }: FundPageProps) {
             transactions={fundTransactions}
             selectedDate={selectedDate}
             selectedYearMonth={selectedYearMonth}
+            categories={fundCategories}
           />
         )}
       </div>
@@ -237,6 +237,7 @@ export default function FundPage({ onClose }: FundPageProps) {
           record={editingRecord}
           existingIncomes={existingIncomeCandidates}
           ledgerCategories={categories}
+          fundCategories={fundCategories}
           onCancel={closeForm}
           onSave={async (transaction) => {
             if (transaction.kind === 'living-expense-allocation') {
@@ -251,15 +252,22 @@ export default function FundPage({ onClose }: FundPageProps) {
             closeForm();
           }}
           onDelete={editingRecord ? async () => {
-            const message = editingRecord.mainIncomeOrigin === 'existing'
-              ? '确定解除关联吗？主账本原有收入会保留。'
-              : '确定删除这条资金记录吗？';
-            if (!window.confirm(message)) return;
+            const isExistingIncome = editingRecord.mainIncomeOrigin === 'existing';
+            const confirmed = await confirmDeletion({
+              title: isExistingIncome ? '解除收入关联' : '删除资金记录',
+              message: isExistingIncome
+                ? '确定解除关联吗？主账本原有收入会保留。'
+                : '确定删除这条资金记录吗？删除后无法恢复。',
+              confirmText: isExistingIncome ? '解除关联' : '删除',
+            });
+            if (!confirmed) return;
             await removeFundRecord(editingRecord.id);
             closeForm();
           } : undefined}
         />
       )}
+
+      {showCategoryManager && <FundCategoryPage onClose={() => setShowCategoryManager(false)} />}
     </div>
   );
 }
@@ -273,19 +281,29 @@ function SummaryCell({ label, value, income = false }: { label: string; value: n
   );
 }
 
-function FundTransactionRow({ transaction, onClick }: { transaction: FundTransaction; onClick: () => void }) {
-  const Icon = getCategoryIcon(transaction.category);
+function FundTransactionRow({
+  transaction,
+  categories,
+  onClick,
+}: {
+  transaction: FundTransaction;
+  categories: FundCategory[];
+  onClick: () => void;
+}) {
+  const category = getFundCategory(transaction, categories);
   const income = transaction.type === 'income';
+  const icon = transaction.kind === 'living-expense-allocation' ? 'wallet-cards' : category?.icon || 'receipt-text';
+  const color = transaction.kind === 'living-expense-allocation' ? '#F59E0B' : category?.color || '#64748B';
   return (
     <button onClick={onClick} className="flex min-h-[4.5rem] w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 active:bg-slate-50">
       <span
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
-        style={{ backgroundColor: CATEGORY_COLORS[transaction.category] || '#64748B' }}
+        style={{ backgroundColor: color }}
       >
-        <Icon size={18} />
+        <Icon name={icon} size={18} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-slate-800">{transaction.category}</span>
+        <span className="block truncate text-sm font-semibold text-slate-800">{category?.name || transaction.category}</span>
         <span className="mt-1 block truncate text-xs text-slate-400">
           {formatDay(transaction.occurredAt)}
           {transaction.kind === 'living-expense-allocation'
@@ -304,10 +322,12 @@ function FundCharts({
   transactions,
   selectedDate,
   selectedYearMonth,
+  categories,
 }: {
   transactions: FundTransaction[];
   selectedDate: Date;
   selectedYearMonth: string;
+  categories: FundCategory[];
 }) {
   const trend = useMemo(
     () => buildFundMonthlyTrend(transactions, selectedDate.getFullYear()),
@@ -355,7 +375,9 @@ function FundCharts({
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={breakdown} dataKey="amount" nameKey="category" cx="50%" cy="50%" innerRadius={55} outerRadius={78} paddingAngle={2}>
-                    {breakdown.map((item) => <Cell key={item.category} fill={CATEGORY_COLORS[item.category] || '#64748B'} />)}
+                    {breakdown.map((item) => (
+                      <Cell key={item.category} fill={getFundCategoryColor(item.category, categories)} />
+                    ))}
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
@@ -367,7 +389,7 @@ function FundCharts({
             <div className="space-y-2">
               {breakdown.map((item) => (
                 <div key={item.category} className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-slate-600"><i className="h-3 w-3 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[item.category] || '#64748B' }} />{item.category}</span>
+                  <span className="flex items-center gap-2 text-slate-600"><i className="h-3 w-3 rounded-full" style={{ backgroundColor: getFundCategoryColor(item.category, categories) }} />{item.category}</span>
                   <span className="font-medium text-slate-800">{formatMoney(item.amount)}</span>
                 </div>
               ))}
@@ -384,14 +406,15 @@ function getMode(transaction: FundTransaction): FundRecordFormMode {
   return transaction.type;
 }
 
-function getCategoryIcon(category: string) {
-  if (category === '生活费') return WalletCards;
-  if (category === '工资' || category === '奖金') return Banknote;
-  if (category === '车贷') return Car;
-  if (category === '房租') return House;
-  if (category === '京东白条') return ShoppingBag;
-  if (category === '花呗') return CreditCard;
-  return ReceiptText;
+function getFundCategory(transaction: FundTransaction, categories: FundCategory[]): FundCategory | undefined {
+  return categories.find((category) => category.id === transaction.categoryId)
+    || categories.find((category) =>
+      category.type === transaction.type && category.name === transaction.category);
+}
+
+function getFundCategoryColor(name: string, categories: FundCategory[]): string {
+  if (name === '生活费') return '#F59E0B';
+  return categories.find((category) => category.name === name)?.color || '#64748B';
 }
 
 function formatYearMonth(yearMonth: string): string {

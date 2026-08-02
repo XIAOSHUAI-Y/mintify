@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import type {
   Budget,
   Category,
+  FundCategory,
   FundTransaction,
   Ledger,
   RecurringRule,
@@ -13,15 +14,18 @@ import {
   deleteBudget,
   deleteCategory,
   deleteFundTransaction,
+  deleteFundCategory,
   deleteLedger,
   deleteRecurringRule,
   deleteTransaction,
   ensureMonthlyBudgets,
   ensureRefundCategory,
+  ensureFundCategories,
   generateRecurringTransactions,
   getBudgets,
   getDefaultLedger,
   getFundTransactions,
+  getFundCategories,
   getLedgers,
   linkExistingLivingExpenseIncome,
   getRecurringRules,
@@ -29,6 +33,7 @@ import {
   saveBudget,
   saveCategory,
   saveFundTransaction,
+  saveFundCategory,
   saveLedger,
   saveRecurringRule,
   saveTransaction,
@@ -43,6 +48,7 @@ interface AppState {
   ledgers: Ledger[];
   currentLedger: Ledger | null;
   categories: Category[];
+  fundCategories: FundCategory[];
   transactions: Transaction[];
   budgets: Budget[];
   recurringRules: RecurringRule[];
@@ -59,6 +65,9 @@ interface AppContextType extends AppState {
   addCategory: (category: Category) => Promise<void>;
   updateCategory: (category: Category) => Promise<void>;
   removeCategory: (categoryId: string) => Promise<void>;
+  addFundCategory: (category: FundCategory) => Promise<void>;
+  updateFundCategory: (category: FundCategory) => Promise<void>;
+  removeFundCategory: (categoryId: string) => Promise<void>;
   addTransaction: (transaction: Transaction) => Promise<void>;
   updateTransaction: (transaction: Transaction) => Promise<void>;
   removeTransaction: (transactionId: string) => Promise<void>;
@@ -82,6 +91,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     ledgers: [],
     currentLedger: null,
     categories: [],
+    fundCategories: [],
     transactions: [],
     budgets: [],
     recurringRules: [],
@@ -101,9 +111,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // PWA 不能保证在每月 1 日凌晨被系统唤醒，启动时补齐可确保跨月后首次打开就完成继承。
     await ensureMonthlyBudgets(currentLedger.id);
     await ensureRefundCategory(currentLedger.id);
+    await ensureFundCategories(currentLedger.id);
 
-    const [categories, transactions, budgets, recurringRules, fundTransactions] = await Promise.all([
+    const [categories, fundCategories, transactions, budgets, recurringRules, fundTransactions] = await Promise.all([
       getCategoriesByLedger(currentLedger.id),
+      getFundCategories(currentLedger.id),
       getTransactions(currentLedger.id),
       getBudgets(currentLedger.id),
       getRecurringRules(currentLedger.id),
@@ -114,6 +126,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ledgers,
       currentLedger,
       categories,
+      fundCategories,
       transactions,
       budgets,
       recurringRules,
@@ -194,7 +207,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const removeCategory = async (categoryId: string) => {
     await deleteCategory(categoryId);
-    setState((s) => ({ ...s, categories: s.categories.filter((c) => c.id !== categoryId) }));
+    // 状态层同样保留软删除分类，历史记录无需等待刷新就能继续显示原图标和名称。
+    setState((s) => ({
+      ...s,
+      categories: s.categories.map((category) =>
+        category.id === categoryId ? { ...category, deletedAt: Date.now() } : category),
+    }));
+  };
+
+  const addFundCategory = async (category: FundCategory) => {
+    await saveFundCategory(category);
+    setState((s) => ({ ...s, fundCategories: updateStateItem(s.fundCategories, category, 'add') }));
+  };
+
+  const updateFundCategory = async (category: FundCategory) => {
+    await saveFundCategory(category);
+    setState((s) => ({ ...s, fundCategories: updateStateItem(s.fundCategories, category, 'update') }));
+  };
+
+  const removeFundCategory = async (categoryId: string) => {
+    await deleteFundCategory(categoryId);
+    setState((s) => ({
+      ...s,
+      fundCategories: s.fundCategories.map((category) =>
+        category.id === categoryId ? { ...category, deletedAt: Date.now() } : category),
+    }));
   };
 
   const addTransaction = async (transaction: Transaction) => {
@@ -275,7 +312,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const saveLivingExpenseAllocation = async (allocation: FundTransaction) => {
     if (!state.currentLedger) throw new Error('当前账本不存在');
     const existingCategory = state.categories.find(
-      (category) => category.type === 'income' && category.name === '生活费',
+      (category) => !category.deletedAt && category.type === 'income' && category.name === '生活费',
     );
     const incomeCategory: Category = existingCategory ?? {
       id: generateId(),
@@ -368,6 +405,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         addCategory,
         updateCategory,
         removeCategory,
+        addFundCategory,
+        updateFundCategory,
+        removeFundCategory,
         addTransaction,
         updateTransaction,
         removeTransaction,

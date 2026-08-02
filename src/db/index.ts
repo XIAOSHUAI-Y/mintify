@@ -4,6 +4,7 @@ import type {
   Budget,
   Category,
   FundTransaction,
+  FundCategory,
   Ledger,
   RecurringRule,
   Transaction,
@@ -49,6 +50,13 @@ interface MintifyDB extends DBSchema {
       'by-occurred': number;
     };
   };
+  fundCategories: {
+    key: string;
+    value: FundCategory;
+    indexes: {
+      'by-ledger': string;
+    };
+  };
   settings: {
     key: string;
     value: AppSettings;
@@ -56,7 +64,7 @@ interface MintifyDB extends DBSchema {
 }
 
 export const DB_NAME = 'mintify-db';
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   id: 'app-settings',
@@ -98,6 +106,11 @@ export const getDB = () => {
           const fundStore = db.createObjectStore('fundTransactions', { keyPath: 'id' });
           fundStore.createIndex('by-ledger', 'ledgerId');
           fundStore.createIndex('by-occurred', 'occurredAt');
+        }
+
+        if (oldVersion < 5) {
+          const fundCategoryStore = db.createObjectStore('fundCategories', { keyPath: 'id' });
+          fundCategoryStore.createIndex('by-ledger', 'ledgerId');
         }
       },
     });
@@ -213,6 +226,12 @@ export async function getRecurringRulesByLedger(ledgerId: string): Promise<Recur
 export async function getFundTransactionsByLedger(ledgerId: string): Promise<FundTransaction[]> {
   const db = await getDB();
   const index = db.transaction('fundTransactions').store.index('by-ledger');
+  return index.getAll(ledgerId);
+}
+
+export async function getFundCategoriesByLedger(ledgerId: string): Promise<FundCategory[]> {
+  const db = await getDB();
+  const index = db.transaction('fundCategories').store.index('by-ledger');
   return index.getAll(ledgerId);
 }
 

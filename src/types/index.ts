@@ -24,6 +24,22 @@ export interface Category {
   type: TransactionType;
   sortOrder: number;
   isBuiltIn: boolean;
+  /** 软删除后不再用于新增记录，但保留元数据供历史账单和统计展示。 */
+  deletedAt?: number;
+}
+
+/** 资金页拥有独立分类，避免工资、房租等项目混入生活费记账链路。 */
+export interface FundCategory {
+  id: string;
+  ledgerId: string;
+  name: string;
+  icon: string;
+  color: string;
+  type: FundTransactionType;
+  sortOrder: number;
+  isBuiltIn: boolean;
+  /** 停用后历史资金记录仍可通过分类快照正常展示。 */
+  deletedAt?: number;
 }
 
 export interface Transaction {
@@ -77,6 +93,8 @@ export interface FundTransaction {
   ledgerId: string;
   type: FundTransactionType;
   category: string;
+  /** 新版记录绑定可管理的资金分类；category 继续作为历史兼容与名称快照。 */
+  categoryId?: string;
   kind: FundTransactionKind;
   amount: number;
   note: string;

@@ -3,6 +3,7 @@ import { Bar, BarChart, Cell, Legend, ResponsiveContainer, XAxis, YAxis } from '
 import { buildMonthlyBudgetOverview, type BudgetChange, type SpendingChange } from '../../domain/budgetAnalytics';
 import { formatMoney } from '../../utils/helpers';
 import type { Budget, Category, Transaction } from '../../types';
+import HorizontalScrollArea from '../HorizontalScrollArea';
 
 interface BudgetUsageChartProps {
   budgets: Budget[];
@@ -70,7 +71,7 @@ export default function BudgetUsageChart({
             </ResponsiveContainer>
           </div>
 
-          <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1">
+          <HorizontalScrollArea className="mt-2 flex gap-1.5 overflow-x-auto pb-1 pr-8">
             {overview.map((month) => (
               <button
                 key={month.yearMonth}
@@ -86,7 +87,7 @@ export default function BudgetUsageChart({
                 {month.month}月
               </button>
             ))}
-          </div>
+          </HorizontalScrollArea>
 
           <MonthDetail month={selected} categoryNames={categoryNames} />
         </>
