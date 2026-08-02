@@ -73,6 +73,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   presetTags: PRESET_TAGS,
   legacySettingsMigrated: false,
   budgetRolloverMonthByLedger: {},
+  budgetViewByLedger: {},
 };
 
 let dbPromise: Promise<IDBPDatabase<MintifyDB>> | null = null;
@@ -155,11 +156,12 @@ export async function getAppSettings(): Promise<AppSettings> {
   const db = await getDB();
   const settings = await db.get('settings', DEFAULT_APP_SETTINGS.id);
   if (settings) {
-    // 旧版设置对象没有预算继承游标，读取时补齐即可，无需升级整个数据库结构。
+    // 新增设置字段都在读取时补齐，避免仅为单例设置升级整个 IndexedDB 结构。
     return {
       ...DEFAULT_APP_SETTINGS,
       ...settings,
       budgetRolloverMonthByLedger: settings.budgetRolloverMonthByLedger ?? {},
+      budgetViewByLedger: settings.budgetViewByLedger ?? {},
     };
   }
 
