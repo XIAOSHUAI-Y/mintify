@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DatePicker } from 'antd-mobile';
-import { Calendar, Tag, FileImage, X, FileText } from 'lucide-react';
+import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
-import { generateId, formatShortDate } from '../utils/helpers';
+import { generateId, formatMoney, formatShortDate } from '../utils/helpers';
 import { PRESET_TAGS } from '../data/seed';
 import type { Transaction } from '../types';
+import { getRemainingRefundableAmount } from '../domain/transactionAccounting';
 
 interface TransactionFormProps {
   onClose: () => void;
@@ -16,6 +17,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   const {
     currentLedger,
     categories,
+    transactions,
     addTransaction,
     updateTransaction,
   } = useApp();
@@ -31,19 +33,43 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   const [draftOccurredAt, setDraftOccurredAt] = useState(occurredAt);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
+  const [incomeMode, setIncomeMode] = useState<'standard' | 'refund'>(
+    editingTransaction?.kind === 'refund' ? 'refund' : 'standard',
+  );
+  const [linkedExpenseId, setLinkedExpenseId] = useState(editingTransaction?.linkedExpenseTransactionId || '');
+  const [saveError, setSaveError] = useState('');
+  const isRefundMode = type === 'income' && incomeMode === 'refund';
 
   const filteredCategories = useMemo(
-    () => categories.filter((c) => c.type === type).sort((a, b) => a.sortOrder - b.sortOrder),
+    () => categories
+      .filter((category) => category.type === type && category.name !== '退款')
+      .sort((a, b) => a.sortOrder - b.sortOrder),
     [categories, type]
   );
 
+  const refundCategory = useMemo(
+    () => categories.find((category) => category.type === 'income' && category.name === '退款'),
+    [categories],
+  );
+
+  const refundableExpenses = useMemo(() => transactions
+    .filter((transaction) =>
+      transaction.type === 'expense'
+      && getRemainingRefundableAmount(transactions, transaction.id, editingTransaction?.id) > 0)
+    .sort((a, b) => b.occurredAt - a.occurredAt),
+  [editingTransaction?.id, transactions]);
+
   useEffect(() => {
+    if (isRefundMode) {
+      setSelectedCategoryId(refundCategory?.id || '');
+      return;
+    }
     const categoryStillMatchesType = filteredCategories.some((category) => category.id === selectedCategoryId);
     // 切换收支类型时必须同步切换分类，避免保存出“收入 + 支出分类”的脏数据。
     if (!categoryStillMatchesType) {
       setSelectedCategoryId(filteredCategories[0]?.id || '');
     }
-  }, [filteredCategories, selectedCategoryId]);
+  }, [filteredCategories, isRefundMode, refundCategory?.id, selectedCategoryId]);
 
   const handleNumber = (num: string) => {
     if (num === '.') {
@@ -79,8 +105,10 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     setShowDatePicker(true);
   };
 
-  const handleSave = (keepOpen = false) => {
+  const handleSave = async (keepOpen = false) => {
     if (!currentLedger || !selectedCategoryId || !amount || isNaN(Number(amount))) return;
+    if (isRefundMode && !linkedExpenseId) return;
+    setSaveError('');
 
     const transactionData: Transaction = {
       id: editingTransaction?.id || generateId(),
@@ -94,25 +122,39 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       occurredAt,
       createdAt: editingTransaction?.createdAt || Date.now(),
       recurringRuleId: editingTransaction?.recurringRuleId,
+      kind: isRefundMode ? 'refund' : undefined,
+      linkedExpenseTransactionId: isRefundMode ? linkedExpenseId : undefined,
     };
 
-    if (editingTransaction) {
-      updateTransaction(transactionData);
-    } else {
-      addTransaction(transactionData);
+    try {
+      if (editingTransaction) {
+        await updateTransaction(transactionData);
+      } else {
+        await addTransaction(transactionData);
+      }
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '保存失败，请重试');
+      return;
     }
 
-    if (keepOpen) {
+    if (keepOpen && !isRefundMode) {
       setAmount('');
       setNote('');
       setTags([]);
       setPhoto('');
       setOccurredAt(Date.now());
       setSelectedCategoryId(filteredCategories[0]?.id || '');
-    } else {
-      onClose();
+      return;
     }
+    onClose();
   };
+
+  const canSave = Boolean(
+    amount
+    && Number(amount) > 0
+    && selectedCategoryId
+    && (!isRefundMode || linkedExpenseId),
+  );
 
   return (
     <div className="mobile-overlay bg-white">
@@ -122,7 +164,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
         <button
           onClick={() => handleSave(false)}
           className="min-h-11 rounded-full px-2 text-sm font-semibold text-amber-700 disabled:text-slate-300"
-          disabled={!amount || !selectedCategoryId}
+          disabled={!canSave}
         >
           保存
         </button>
@@ -142,7 +184,11 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
           {(['expense', 'income', 'transfer'] as const).map((t) => (
             <button
               key={t}
-              onClick={() => setType(t)}
+              onClick={() => {
+                setType(t);
+                if (t !== 'income') setIncomeMode('standard');
+                setSaveError('');
+              }}
               aria-pressed={type === t}
               className={`min-h-11 flex-1 rounded-lg text-sm font-medium transition-colors ${
                 type === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
@@ -153,6 +199,33 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
           ))}
         </div>
       </div>
+
+      {type === 'income' && (
+        <div className="mb-3 px-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setIncomeMode('standard')}
+              className={`flex min-h-14 items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition-colors ${
+                incomeMode === 'standard'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-slate-200 bg-white text-slate-500'
+              }`}
+            >
+              普通收入
+            </button>
+            <button
+              onClick={() => setIncomeMode('refund')}
+              className={`flex min-h-14 items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition-colors ${
+                incomeMode === 'refund'
+                  ? 'border-amber-300 bg-amber-50 text-amber-700'
+                  : 'border-slate-200 bg-white text-slate-500'
+              }`}
+            >
+              <RotateCcw size={17} /> 退款
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Meta Fields */}
       <div className="mb-4 flex gap-2 overflow-x-auto px-4 pb-1 hide-scrollbar">
@@ -190,14 +263,75 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
         </div>
       )}
 
-      {/* Category Grid */}
+      {saveError && (
+        <div className="mx-4 mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{saveError}</div>
+      )}
+
+      {/* 退款必须显式绑定原支出；普通收支继续沿用原有分类网格。 */}
       <div className="flex-1 overflow-y-auto px-4 pb-3">
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-800">选择分类</div>
-          <div className="text-xs text-slate-400">{filteredCategories.length} 个</div>
-        </div>
-        <div className="grid grid-cols-4 gap-x-3 gap-y-4">
-          {filteredCategories.map((category) => (
+        {isRefundMode ? (
+          <>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
+                <Link2 size={16} className="text-amber-600" /> 绑定支出账单
+              </div>
+              <div className="text-xs text-slate-400">{refundableExpenses.length} 笔可退</div>
+            </div>
+            {refundableExpenses.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
+                <div className="text-sm font-medium text-slate-500">没有可退款的支出</div>
+                <div className="mt-1 text-xs text-slate-400">请先记录支出，或检查是否已经全额退款</div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {refundableExpenses.map((expense) => {
+                  const category = categories.find((item) => item.id === expense.categoryId);
+                  const remaining = getRemainingRefundableAmount(transactions, expense.id, editingTransaction?.id);
+                  const selected = linkedExpenseId === expense.id;
+                  return (
+                    <button
+                      key={expense.id}
+                      onClick={() => {
+                        setLinkedExpenseId(expense.id);
+                        if (!amount) setAmount(String(remaining));
+                        setSaveError('');
+                      }}
+                      className={`flex min-h-18 w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors ${
+                        selected ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
+                      }`}
+                    >
+                      <span
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white"
+                        style={{ backgroundColor: category?.color || '#94A3B8' }}
+                      >
+                        <Icon name={category?.icon || 'more-horizontal'} size={20} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-semibold text-slate-800">
+                          {expense.note || category?.name || '未分类支出'}
+                        </span>
+                        <span className="mt-0.5 block text-xs text-slate-400">
+                          {formatShortDate(expense.occurredAt)} · 原支出 {formatMoney(expense.amount)}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-right">
+                        <span className="block text-xs text-slate-400">可退</span>
+                        <span className="text-sm font-semibold text-amber-700">{formatMoney(remaining)}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-800">选择分类</div>
+              <div className="text-xs text-slate-400">{filteredCategories.length} 个</div>
+            </div>
+            <div className="grid grid-cols-4 gap-x-3 gap-y-4">
+              {filteredCategories.map((category) => (
             <button
               key={category.id}
               onClick={() => setSelectedCategoryId(category.id)}
@@ -217,8 +351,10 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
               </div>
               <span className="text-xs">{category.name}</span>
             </button>
-          ))}
-        </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Number Pad */}
@@ -236,7 +372,13 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
             { label: '7', action: () => handleNumber('7') },
             { label: '8', action: () => handleNumber('8') },
             { label: '9', action: () => handleNumber('9') },
-            { label: '再记', action: () => handleSave(true) },
+            { label: isRefundMode ? '全额' : '再记', action: () => {
+              if (isRefundMode && linkedExpenseId) {
+                setAmount(String(getRemainingRefundableAmount(transactions, linkedExpenseId, editingTransaction?.id)));
+              } else {
+                void handleSave(true);
+              }
+            } },
             { label: '.', action: () => handleNumber('.') },
             { label: '0', action: () => handleNumber('0') },
             { label: '⌫', action: handleBackspace },
@@ -245,7 +387,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
             <button
               key={idx}
               onClick={btn.action}
-              disabled={btn.label === '保存' && (!amount || !selectedCategoryId)}
+              disabled={btn.label === '保存' && !canSave}
               className={`h-14 text-lg font-medium transition-opacity active:opacity-70 disabled:opacity-40 ${
                 btn.primary ? 'bg-primary text-black' : 'border-b border-r border-slate-100 bg-white text-slate-800'
               }`}

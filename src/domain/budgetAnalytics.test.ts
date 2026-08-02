@@ -70,6 +70,31 @@ describe('预算分配结余', () => {
       balanceAmount: 4650,
     });
   });
+
+  it('退款按原支出分类释放超支占用', () => {
+    const budgets: Budget[] = [
+      budget('overall-aug', '2026-08', 1000, true),
+      budget('software-aug', '2026-08', 250, false, 'software'),
+    ];
+    const originalExpense = expense('ai-expense', 'software', 500, new Date(2026, 7, 2).getTime());
+    const refund: Transaction = {
+      ...expense('ai-refund', 'refund-category', 500, new Date(2026, 7, 5).getTime()),
+      type: 'income',
+      kind: 'refund',
+      linkedExpenseTransactionId: originalExpense.id,
+    };
+
+    expect(calculateBudgetAllocationSummary({
+      budgets,
+      transactions: [refund, originalExpense],
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+    })).toMatchObject({
+      allocatedAmount: 250,
+      categoryOverspendAmount: 0,
+      balanceAmount: 750,
+    });
+  });
 });
 
 function budget(

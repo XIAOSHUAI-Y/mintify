@@ -1,27 +1,43 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import type { Budget, Category, Ledger, RecurringRule, Transaction } from '../types';
+import type {
+  Budget,
+  Category,
+  FundTransaction,
+  Ledger,
+  RecurringRule,
+  Transaction,
+} from '../types';
 import {
+  allocateLivingExpense,
   bootstrapIfNeeded,
   deleteBudget,
   deleteCategory,
+  deleteFundTransaction,
   deleteLedger,
   deleteRecurringRule,
   deleteTransaction,
   ensureMonthlyBudgets,
+  ensureRefundCategory,
   generateRecurringTransactions,
   getBudgets,
   getDefaultLedger,
+  getFundTransactions,
   getLedgers,
+  linkExistingLivingExpenseIncome,
   getRecurringRules,
   getTransactions,
   saveBudget,
   saveCategory,
+  saveFundTransaction,
   saveLedger,
   saveRecurringRule,
   saveTransaction,
   setDefaultLedger,
 } from '../db/operations';
+import { shouldRemoveLinkedMainIncome } from '../domain/fundLedger';
+import { isRefund } from '../domain/transactionAccounting';
 import { getCategoriesByLedger } from '../db';
+import { generateId } from '../utils/helpers';
 
 interface AppState {
   ledgers: Ledger[];
@@ -30,6 +46,7 @@ interface AppState {
   transactions: Transaction[];
   budgets: Budget[];
   recurringRules: RecurringRule[];
+  fundTransactions: FundTransaction[];
   isLoading: boolean;
 }
 
@@ -52,6 +69,10 @@ interface AppContextType extends AppState {
   updateRecurringRule: (rule: RecurringRule) => Promise<void>;
   removeRecurringRule: (ruleId: string) => Promise<void>;
   runRecurringGenerator: () => Promise<number>;
+  saveFundRecord: (transaction: FundTransaction) => Promise<void>;
+  removeFundRecord: (transactionId: string) => Promise<void>;
+  saveLivingExpenseAllocation: (allocation: FundTransaction) => Promise<void>;
+  linkExistingLivingExpenseAllocation: (transaction: Transaction) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -64,6 +85,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     transactions: [],
     budgets: [],
     recurringRules: [],
+    fundTransactions: [],
     isLoading: true,
   });
 
@@ -78,12 +100,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // PWA 不能保证在每月 1 日凌晨被系统唤醒，启动时补齐可确保跨月后首次打开就完成继承。
     await ensureMonthlyBudgets(currentLedger.id);
+    await ensureRefundCategory(currentLedger.id);
 
-    const [categories, transactions, budgets, recurringRules] = await Promise.all([
+    const [categories, transactions, budgets, recurringRules, fundTransactions] = await Promise.all([
       getCategoriesByLedger(currentLedger.id),
       getTransactions(currentLedger.id),
       getBudgets(currentLedger.id),
       getRecurringRules(currentLedger.id),
+      getFundTransactions(currentLedger.id),
     ]);
 
     setState({
@@ -93,6 +117,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       transactions,
       budgets,
       recurringRules,
+      fundTransactions,
       isLoading: false,
     });
   };
@@ -224,6 +249,113 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return count;
   };
 
+  const saveFundRecord = async (transaction: FundTransaction) => {
+    await saveFundTransaction(transaction);
+    setState((s) => {
+      const exists = s.fundTransactions.some((item) => item.id === transaction.id);
+      return {
+        ...s,
+        fundTransactions: updateStateItem(s.fundTransactions, transaction, exists ? 'update' : 'add'),
+      };
+    });
+  };
+
+  const removeFundRecord = async (transactionId: string) => {
+    const removed = state.fundTransactions.find((item) => item.id === transactionId);
+    await deleteFundTransaction(transactionId);
+    setState((s) => ({
+      ...s,
+      fundTransactions: s.fundTransactions.filter((item) => item.id !== transactionId),
+      transactions: removed && shouldRemoveLinkedMainIncome(removed)
+        ? s.transactions.filter((item) => item.id !== removed.linkedTransactionId)
+        : s.transactions,
+    }));
+  };
+
+  const saveLivingExpenseAllocation = async (allocation: FundTransaction) => {
+    if (!state.currentLedger) throw new Error('当前账本不存在');
+    const existingCategory = state.categories.find(
+      (category) => category.type === 'income' && category.name === '生活费',
+    );
+    const incomeCategory: Category = existingCategory ?? {
+      id: generateId(),
+      ledgerId: state.currentLedger.id,
+      name: '生活费',
+      icon: 'wallet-cards',
+      color: '#F59E0B',
+      type: 'income',
+      sortOrder: state.categories.length,
+      isBuiltIn: true,
+    };
+    const linkedTransactionId = allocation.linkedTransactionId || generateId();
+    const normalizedAllocation: FundTransaction = {
+      ...allocation,
+      ledgerId: state.currentLedger.id,
+      type: 'expense',
+      category: '生活费',
+      kind: 'living-expense-allocation',
+      linkedTransactionId,
+      mainIncomeOrigin: 'auto-created',
+    };
+    const mainIncome: Transaction = {
+      id: linkedTransactionId,
+      ledgerId: state.currentLedger.id,
+      categoryId: incomeCategory.id,
+      amount: allocation.amount,
+      type: 'income',
+      note: allocation.note || '生活费划拨',
+      tags: ['资金划拨'],
+      occurredAt: allocation.occurredAt,
+      createdAt: allocation.createdAt,
+    };
+
+    await allocateLivingExpense(normalizedAllocation, mainIncome, incomeCategory);
+    setState((s) => {
+      const categoryExists = s.categories.some((item) => item.id === incomeCategory.id);
+      const transactionExists = s.transactions.some((item) => item.id === mainIncome.id);
+      const allocationExists = s.fundTransactions.some((item) => item.id === normalizedAllocation.id);
+      return {
+        ...s,
+        categories: updateStateItem(s.categories, incomeCategory, categoryExists ? 'update' : 'add'),
+        transactions: updateStateItem(s.transactions, mainIncome, transactionExists ? 'update' : 'add'),
+        fundTransactions: updateStateItem(
+          s.fundTransactions,
+          normalizedAllocation,
+          allocationExists ? 'update' : 'add',
+        ),
+      };
+    });
+  };
+
+  const linkExistingLivingExpenseAllocation = async (transaction: Transaction) => {
+    if (
+      !state.currentLedger
+      || transaction.ledgerId !== state.currentLedger.id
+      || transaction.type !== 'income'
+      || isRefund(transaction)
+    ) {
+      throw new Error('只能关联当前账本中的收入');
+    }
+    const allocation: FundTransaction = {
+      id: generateId(),
+      ledgerId: transaction.ledgerId,
+      type: 'expense',
+      category: '生活费',
+      kind: 'living-expense-allocation',
+      amount: transaction.amount,
+      note: transaction.note,
+      occurredAt: transaction.occurredAt,
+      createdAt: Date.now(),
+      linkedTransactionId: transaction.id,
+      mainIncomeOrigin: 'existing',
+    };
+    await linkExistingLivingExpenseIncome(allocation, transaction);
+    setState((s) => ({
+      ...s,
+      fundTransactions: updateStateItem(s.fundTransactions, allocation, 'add'),
+    }));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -246,6 +378,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         updateRecurringRule,
         removeRecurringRule,
         runRecurringGenerator,
+        saveFundRecord,
+        removeFundRecord,
+        saveLivingExpenseAllocation,
+        linkExistingLivingExpenseAllocation,
       }}
     >
       {children}

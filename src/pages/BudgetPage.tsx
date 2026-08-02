@@ -6,6 +6,7 @@ import { Icon } from '../components/Icon';
 import { formatMoney, getYearMonth } from '../utils/helpers';
 import { generateId } from '../utils/helpers';
 import { calculateBudgetAllocationSummary, type BudgetAllocationSummary } from '../domain/budgetAnalytics';
+import { getNetSpendingByCategory } from '../domain/transactionAccounting';
 import type { Budget, Transaction } from '../types';
 
 interface BudgetPageProps {
@@ -41,22 +42,19 @@ export default function BudgetPage({ onClose }: BudgetPageProps) {
     [budgets, currentLedger, currentMonth, transactions]
   );
 
-  const calculateSpent = (budget: Budget) => {
-    if (!currentLedger) return 0;
-    const start = new Date();
-    start.setDate(1);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59, 999);
+  const spendingByCategory = useMemo(
+    () => currentLedger
+      ? getNetSpendingByCategory(
+          transactions.filter((transaction) => transaction.ledgerId === currentLedger.id),
+          currentMonth,
+        )
+      : new Map<string, number>(),
+    [currentLedger, currentMonth, transactions],
+  );
 
-    return transactions
-      .filter((t) => {
-        if (t.type !== 'expense') return false;
-        if (t.ledgerId !== currentLedger.id) return false;
-        if (t.occurredAt < start.getTime() || t.occurredAt > end.getTime()) return false;
-        if (budget.includeOverall) return true;
-        return t.categoryId === budget.categoryId;
-      })
-      .reduce((sum, t) => sum + t.amount, 0);
+  const calculateSpent = (budget: Budget) => {
+    if (budget.includeOverall) return [...spendingByCategory.values()].reduce((sum, amount) => sum + amount, 0);
+    return budget.categoryId ? spendingByCategory.get(budget.categoryId) ?? 0 : 0;
   };
 
   return (

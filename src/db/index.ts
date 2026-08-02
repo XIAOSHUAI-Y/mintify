@@ -1,5 +1,13 @@
 import { openDB, type DBSchema, type IDBPDatabase, type StoreNames } from 'idb';
-import type { AppSettings, Budget, Category, Ledger, RecurringRule, Transaction } from '../types';
+import type {
+  AppSettings,
+  Budget,
+  Category,
+  FundTransaction,
+  Ledger,
+  RecurringRule,
+  Transaction,
+} from '../types';
 import { PRESET_TAGS } from '../data/seed';
 
 interface MintifyDB extends DBSchema {
@@ -33,6 +41,14 @@ interface MintifyDB extends DBSchema {
       'by-ledger': string;
     };
   };
+  fundTransactions: {
+    key: string;
+    value: FundTransaction;
+    indexes: {
+      'by-ledger': string;
+      'by-occurred': number;
+    };
+  };
   settings: {
     key: string;
     value: AppSettings;
@@ -40,7 +56,7 @@ interface MintifyDB extends DBSchema {
 }
 
 export const DB_NAME = 'mintify-db';
-export const DB_VERSION = 2;
+export const DB_VERSION = 4;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   id: 'app-settings',
@@ -75,6 +91,13 @@ export const getDB = () => {
 
         if (oldVersion < 2) {
           db.createObjectStore('settings', { keyPath: 'id' });
+        }
+
+        if (oldVersion < 4) {
+          // 资金账本保存实际发生记录，与生活费主账本仅通过显式划拨产生关联。
+          const fundStore = db.createObjectStore('fundTransactions', { keyPath: 'id' });
+          fundStore.createIndex('by-ledger', 'ledgerId');
+          fundStore.createIndex('by-occurred', 'occurredAt');
         }
       },
     });
@@ -184,6 +207,12 @@ export async function getBudgetsByLedger(ledgerId: string): Promise<Budget[]> {
 export async function getRecurringRulesByLedger(ledgerId: string): Promise<RecurringRule[]> {
   const db = await getDB();
   const index = db.transaction('recurringRules').store.index('by-ledger');
+  return index.getAll(ledgerId);
+}
+
+export async function getFundTransactionsByLedger(ledgerId: string): Promise<FundTransaction[]> {
+  const db = await getDB();
+  const index = db.transaction('fundTransactions').store.index('by-ledger');
   return index.getAll(ledgerId);
 }
 

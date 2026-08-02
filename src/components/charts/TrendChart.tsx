@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend } from 'recharts';
 import type { Transaction } from '../../types';
+import { summarizeTransactions } from '../../domain/transactionAccounting';
 
 interface TrendChartProps {
   transactions: Transaction[];
@@ -14,11 +15,12 @@ export default function TrendChart({ transactions, year }: TrendChartProps) {
       const start = new Date(year, i, 1).getTime();
       const end = new Date(year, i + 1, 0, 23, 59, 59, 999).getTime();
       const monthTransactions = transactions.filter((t) => t.occurredAt >= start && t.occurredAt <= end);
+      const summary = summarizeTransactions(monthTransactions);
 
       return {
         month: `${month}月`,
-        income: monthTransactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0),
-        expense: monthTransactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0),
+        income: summary.income,
+        expense: summary.netExpense,
       };
     });
   }, [transactions, year]);

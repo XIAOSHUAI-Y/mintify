@@ -16,6 +16,7 @@ export const EXPENSE_CATEGORIES: { name: string; icon: string; color: string }[]
 ];
 
 export const INCOME_CATEGORIES: { name: string; icon: string; color: string }[] = [
+  { name: '退款', icon: 'rotate-ccw', color: '#F59E0B' },
   { name: '工资', icon: 'banknote', color: '#10B981' },
   { name: '奖金', icon: 'gift', color: '#F59E0B' },
   { name: '投资', icon: 'trending-up', color: '#3B82F6' },
