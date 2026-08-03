@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Landmark,
+  Pencil,
   PiggyBank,
   Plus,
   Sparkles,
@@ -20,9 +21,13 @@ const PLAN_COLORS = ['#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#F43F5E'];
 export default function ReserveCenter({
   yearMonth,
   showMonthlyTransfer = true,
+  standalone = false,
+  onClose,
 }: {
   yearMonth: string;
   showMonthlyTransfer?: boolean;
+  standalone?: boolean;
+  onClose?: () => void;
 }) {
   const {
     currentLedger,
@@ -33,7 +38,7 @@ export default function ReserveCenter({
     savePlan,
     addReserveEntry,
   } = useApp();
-  const [managerOpen, setManagerOpen] = useState(false);
+  const [managerOpen, setManagerOpen] = useState(standalone);
   const [dialog, setDialog] = useState<'month-all' | 'month-custom' | 'plan' | 'transfer' | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [amount, setAmount] = useState('');
@@ -71,7 +76,31 @@ export default function ReserveCenter({
     setPlanName('');
     setTargetAmount('');
     setSelectedPlanId('');
+    setPlanColor(PLAN_COLORS[0]);
     setError('');
+  };
+
+  const closeManager = () => {
+    if (standalone) onClose?.();
+    else setManagerOpen(false);
+  };
+
+  const openCreatePlan = () => {
+    setSelectedPlanId('');
+    setPlanName('');
+    setTargetAmount('');
+    setPlanColor(PLAN_COLORS[0]);
+    setError('');
+    setDialog('plan');
+  };
+
+  const openPlanEditor = (plan: SavingsPlan) => {
+    setSelectedPlanId(plan.id);
+    setPlanName(plan.name);
+    setTargetAmount(plan.targetAmount ? String(plan.targetAmount) : '');
+    setPlanColor(plan.color);
+    setError('');
+    setDialog('plan');
   };
 
   const openMonthTransfer = (mode: 'all' | 'custom') => {
@@ -108,18 +137,20 @@ export default function ReserveCenter({
     }
   };
 
-  const createPlan = async () => {
+  const savePlanDetails = async () => {
     const target = targetAmount ? Number(targetAmount) : undefined;
     if (!planName.trim()) return setError('给计划起个名字吧');
     if (target !== undefined && (!Number.isFinite(target) || target <= 0)) return setError('目标金额必须大于 0');
+    const existingPlan = activePlans.find((plan) => plan.id === selectedPlanId);
     const plan: SavingsPlan = {
-      id: generateId(),
+      ...existingPlan,
+      id: existingPlan?.id ?? generateId(),
       ledgerId: currentLedger.id,
       name: planName.trim(),
       targetAmount: target,
-      icon: 'piggy-bank',
+      icon: existingPlan?.icon ?? 'piggy-bank',
       color: planColor,
-      createdAt: Date.now(),
+      createdAt: existingPlan?.createdAt ?? Date.now(),
     };
     try {
       await savePlan(plan);
@@ -152,9 +183,11 @@ export default function ReserveCenter({
 
   const currentMonth = getYearMonth(Date.now());
   const canTransferMonth = yearMonth <= currentMonth && availability.availableAmount > 0;
+  const editingPlan = activePlans.find((plan) => plan.id === selectedPlanId);
 
   return (
     <>
+      {!standalone && (
       <section className="mb-5 overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-4 shadow-[0_14px_34px_rgba(245,158,11,0.10)]">
         <button onClick={() => setManagerOpen(true)} className="w-full text-left">
           <div className="flex items-start justify-between gap-3">
@@ -188,8 +221,8 @@ export default function ReserveCenter({
             >
               <ArrowDownToLine size={16} className="shrink-0" />
               <span className="truncate">
-                {availability.budgetAmount <= 0
-                  ? '暂无可转结余'
+                {availability.availableAmount <= 0
+                  ? '暂无未分配预算'
                   : `全部转入 ${formatMoney(availability.availableAmount)}`}
               </span>
             </button>
@@ -203,15 +236,16 @@ export default function ReserveCenter({
           </div>
         )}
       </section>
+      )}
 
       {managerOpen && (
         <div className="mobile-overlay z-[60] bg-slate-50">
           <div className="mobile-toolbar">
-            <button onClick={() => setManagerOpen(false)} className="icon-button" aria-label="返回预算页">
+            <button onClick={closeManager} className="icon-button" aria-label="返回">
               <ArrowLeft size={21} />
             </button>
             <div className="font-semibold">我的结余</div>
-            <button onClick={() => setDialog('plan')} className="icon-button text-amber-700" aria-label="新建攒钱计划">
+            <button onClick={openCreatePlan} className="icon-button text-amber-700" aria-label="新建攒钱计划">
               <Plus size={21} />
             </button>
           </div>
@@ -227,11 +261,11 @@ export default function ReserveCenter({
 
             <div className="mb-2 mt-6 flex items-center justify-between">
               <div className="text-sm font-semibold text-slate-800">攒钱计划</div>
-              <button onClick={() => setDialog('plan')} className="text-xs font-semibold text-amber-700">+ 新建计划</button>
+              <button onClick={openCreatePlan} className="text-xs font-semibold text-amber-700">+ 新建计划</button>
             </div>
             {activePlans.length === 0 ? (
               <button
-                onClick={() => setDialog('plan')}
+                onClick={openCreatePlan}
                 className="surface-card flex w-full flex-col items-center border-dashed px-4 py-8 text-center"
               >
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
@@ -260,7 +294,16 @@ export default function ReserveCenter({
                             {plan.targetAmount ? `目标 ${formatMoney(plan.targetAmount)}` : '没有金额压力，慢慢攒'}
                           </span>
                         </span>
-                        <span className="text-right text-sm font-semibold text-slate-800">{formatMoney(balance)}</span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span className="text-right text-sm font-semibold text-slate-800">{formatMoney(balance)}</span>
+                          <button
+                            onClick={() => openPlanEditor(plan)}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-700 active:bg-amber-100"
+                            aria-label={`编辑${plan.name}`}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        </span>
                       </div>
                       {plan.targetAmount && (
                         <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -337,7 +380,9 @@ export default function ReserveCenter({
       {dialog === 'plan' && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4">
           <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
-            <div className="text-center font-semibold text-slate-900">新建攒钱计划</div>
+            <div className="text-center font-semibold text-slate-900">
+              {editingPlan ? '编辑攒钱计划' : '新建攒钱计划'}
+            </div>
             <input
               value={planName}
               onChange={(event) => {
@@ -372,7 +417,9 @@ export default function ReserveCenter({
             {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button onClick={resetDialog} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600">取消</button>
-              <button onClick={() => void createPlan()} className="min-h-12 rounded-xl bg-amber-400 font-semibold text-amber-950">创建</button>
+              <button onClick={() => void savePlanDetails()} className="min-h-12 rounded-xl bg-amber-400 font-semibold text-amber-950">
+                {editingPlan ? '保存' : '创建'}
+              </button>
             </div>
           </div>
         </div>

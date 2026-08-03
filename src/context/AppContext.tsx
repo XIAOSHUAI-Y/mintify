@@ -42,6 +42,7 @@ import {
   saveRecurringRule,
   saveReserveEntry,
   saveSavingsPlan,
+  settlePreviousMonthBudgetReserve,
   saveTransaction,
   setDefaultLedger,
 } from '../db/operations';
@@ -124,6 +125,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await ensureMonthlyBudgets(currentLedger.id);
     await ensureRefundCategory(currentLedger.id);
     await ensureFundCategories(currentLedger.id);
+    await settlePreviousMonthBudgetReserve(currentLedger.id);
 
     const [
       categories,

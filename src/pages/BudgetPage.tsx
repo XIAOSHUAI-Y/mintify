@@ -3,17 +3,17 @@ import { Popover } from 'antd-mobile';
 import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
-import ReserveCenter from '../components/ReserveCenter';
 import { useConfirmDeletion } from '../context/ConfirmDialogContext';
 import { getAppSettings } from '../db';
 import { saveBudgetViewPreference } from '../db/operations';
-import { formatMoney, generateId, getYearMonth } from '../utils/helpers';
+import { formatMoney, formatPercentage, generateId, getYearMonth } from '../utils/helpers';
 import {
   buildMonthlyBudgetOverview,
   calculateBudgetAllocationSummary,
   type BudgetAllocationSummary,
   type MonthlyBudgetOverview,
 } from '../domain/budgetAnalytics';
+import { calculateMonthlyReserveDestinations } from '../domain/reserveLedger';
 import { getNetSpendingByCategory } from '../domain/transactionAccounting';
 import type { Budget, Transaction } from '../types';
 
@@ -23,6 +23,7 @@ export default function BudgetPage() {
     categories,
     transactions,
     budgets,
+    savingsPlans,
     reserveEntries,
     addBudget,
     updateBudget,
@@ -130,6 +131,13 @@ export default function BudgetPage() {
     [currentLedger?.id, reserveEntries, selectedYearMonth],
   );
 
+  const monthlyReserveDestinations = useMemo(
+    () => currentLedger
+      ? calculateMonthlyReserveDestinations(reserveEntries, currentLedger.id, selectedYearMonth)
+      : [],
+    [currentLedger, reserveEntries, selectedYearMonth],
+  );
+
   const calculateSpent = (budget: Budget) => {
     if (budget.includeOverall) return [...spendingByCategory.values()].reduce((sum, amount) => sum + amount, 0);
     return budget.categoryId ? spendingByCategory.get(budget.categoryId) ?? 0 : 0;
@@ -167,8 +175,6 @@ export default function BudgetPage() {
         onToday={() => setSelectedYearMonth(currentMonth)}
       />
 
-      <ReserveCenter yearMonth={selectedYearMonth} showMonthlyTransfer={viewMode === 'month'} />
-
       {viewMode === 'year' ? (
         <YearBudgetView
           overview={yearlyOverview}
@@ -188,6 +194,8 @@ export default function BudgetPage() {
                 budget={overallBudget}
                 spent={calculateSpent(overallBudget)}
                 reserved={selectedMonthReserved}
+                categoryAllocated={allocationSummary.allocatedAmount}
+                allocationBalance={allocationSummary.balanceAmount}
                 onClick={() => setEditingBudget(overallBudget)}
               />
             ) : (
@@ -212,14 +220,31 @@ export default function BudgetPage() {
                   onClick={() => setEditingBudget(budget)}
                 />
               ))}
-              {selectedMonthReserved > 0 && (
-                <ReserveBudgetCard
-                  amount={selectedMonthReserved}
-                  totalBudget={overallBudget?.amount
-                    ?? categoryBudgets.reduce((sum, budget) => sum + budget.amount, 0)}
-                />
-              )}
             </div>
+
+            {monthlyReserveDestinations.length > 0 && (
+              <div className="mt-6">
+                <div className="mb-2 text-sm font-medium">攒钱计划</div>
+                <div className="space-y-3">
+                  {monthlyReserveDestinations.map((destination) => {
+                    const plan = destination.targetPlanId
+                      ? savingsPlans.find((item) => item.id === destination.targetPlanId)
+                      : undefined;
+                    return (
+                      <SavingsAllocationCard
+                        key={`${destination.targetType}:${destination.targetPlanId ?? 'general'}`}
+                        name={destination.targetType === 'general' ? '通用结余池' : plan?.name ?? '已归档计划'}
+                        icon={destination.targetType === 'general' ? 'piggy-bank' : plan?.icon ?? 'piggy-bank'}
+                        color={destination.targetType === 'general' ? '#3B82F6' : plan?.color ?? '#64748B'}
+                        amount={destination.amount}
+                        totalBudget={overallBudget?.amount
+                          ?? categoryBudgets.reduce((sum, budget) => sum + budget.amount, 0)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <BudgetBalanceCard summary={allocationSummary} hasOverallBudget={!!overallBudget} />
 
@@ -414,8 +439,8 @@ function YearMonthCard({
           {month.status === 'no-budget'
             ? '未设置'
             : month.status === 'overspent'
-              ? `超支 ${Math.round(month.utilization ?? 0)}%`
-              : `已用 ${Math.round(month.utilization ?? 0)}%`}
+              ? `超支 ${formatPercentage(month.utilization ?? 0)}`
+              : `已用 ${formatPercentage(month.utilization ?? 0)}`}
         </div>
       </div>
       <div className="mt-2 text-sm font-semibold text-slate-700">{formatMoney(month.budgetAmount)}</div>
@@ -493,10 +518,20 @@ function BudgetBalanceCard({
   );
 }
 
-/**
- * 结余预算占用总预算，但不属于消费分类，因此单独展示而不伪造普通分类。
- */
-function ReserveBudgetCard({ amount, totalBudget }: { amount: number; totalBudget: number }) {
+/** 攒钱占用总预算，但按真实去向展示，避免把通用池或具体计划伪装成消费分类。 */
+function SavingsAllocationCard({
+  name,
+  icon,
+  color,
+  amount,
+  totalBudget,
+}: {
+  name: string;
+  icon: string;
+  color: string;
+  amount: number;
+  totalBudget: number;
+}) {
   const share = totalBudget > 0 ? amount / totalBudget * 100 : 0;
   const progress = Math.min(share, 100);
 
@@ -504,23 +539,26 @@ function ReserveBudgetCard({ amount, totalBudget }: { amount: number; totalBudge
     <div className="surface-card p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-            <Icon name="piggy-bank" size={16} />
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+            style={{ backgroundColor: `${color}1A`, color }}
+          >
+            <Icon name={icon} size={16} />
           </span>
-          <span className="font-medium text-slate-800">结余预算</span>
+          <span className="truncate font-medium text-slate-800">{name}</span>
           <span className="truncate text-sm font-semibold text-slate-500">{formatMoney(amount)}</span>
         </div>
-        <span className="shrink-0 text-sm font-semibold text-amber-700">{Math.round(share)}%</span>
+        <span className="shrink-0 text-sm font-semibold" style={{ color }}>{formatPercentage(share)}</span>
       </div>
-      <div className="mb-3 h-2 overflow-hidden rounded-full bg-amber-50">
+      <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100">
         <div
-          className="h-full rounded-full bg-amber-400"
-          style={{ width: `${progress}%` }}
+          className="h-full rounded-full"
+          style={{ width: `${progress}%`, backgroundColor: color }}
         />
       </div>
       <div className="flex items-center justify-between gap-3 text-sm">
-        <span className="text-slate-500">本月已存 {formatMoney(amount)}</span>
-        <span className="text-amber-700">不计入消费</span>
+        <span className="text-slate-500">本月从预算转入 {formatMoney(amount)}</span>
+        <span style={{ color }}>不计入消费</span>
       </div>
     </div>
   );
@@ -530,18 +568,75 @@ function BudgetCard({
   budget,
   spent,
   reserved = 0,
+  categoryAllocated = 0,
+  allocationBalance,
   category,
   onClick,
 }: {
   budget: Budget;
   spent: number;
   reserved?: number;
+  categoryAllocated?: number;
+  allocationBalance?: number;
   category?: { name: string; icon: string; color: string };
   onClick: () => void;
 }) {
   const occupied = spent + reserved;
   const progress = budget.amount > 0 ? Math.min((occupied / budget.amount) * 100, 100) : 0;
   const remaining = budget.amount - occupied;
+
+  if (!category) {
+    const availableToAllocate = allocationBalance ?? remaining;
+    const plannedAmount = budget.amount - availableToAllocate;
+    const plannedProgress = budget.amount > 0
+      ? Math.min(Math.max(plannedAmount / budget.amount * 100, 0), 100)
+      : 0;
+    return (
+      <button
+        onClick={onClick}
+        className="relative w-full overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-5 text-left shadow-[0_16px_38px_rgba(245,158,11,0.13)] active:scale-[0.995]"
+      >
+        <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-amber-200/35 blur-2xl" />
+        <div className="relative flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800/70">
+              <WalletCards size={15} /> {Number(budget.yearMonth.slice(5))} 月总预算
+            </div>
+            <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">{formatMoney(budget.amount)}</div>
+          </div>
+          <span className={`rounded-full bg-white/75 px-2.5 py-1 text-xs font-semibold shadow-sm ${
+            plannedProgress >= 100 ? 'text-rose-600' : 'text-amber-800'
+          }`}>
+            {formatPercentage(plannedProgress)} 已规划
+          </span>
+        </div>
+
+        <div className="relative mt-4 h-2 overflow-hidden rounded-full bg-white/80">
+          <div
+            className={`h-full rounded-full ${plannedProgress >= 100 ? 'bg-rose-500' : 'bg-amber-400'}`}
+            style={{ width: `${plannedProgress}%` }}
+          />
+        </div>
+
+        <div className="relative mt-4 divide-y divide-white/80 overflow-hidden rounded-xl border border-white/80 bg-white/65 px-3">
+          <div className="flex items-center justify-between py-2.5 text-xs">
+            <span className="text-slate-500">分类预算</span>
+            <span className="font-semibold text-rose-500">{formatMoney(categoryAllocated)}</span>
+          </div>
+          <div className="flex items-center justify-between py-2.5 text-xs">
+            <span className="text-slate-500">攒钱计划</span>
+            <span className="font-semibold text-sky-600">{formatMoney(reserved)}</span>
+          </div>
+          <div className="flex items-center justify-between py-2.5 text-xs">
+            <span className="text-slate-500">可分配</span>
+            <span className={`font-semibold ${availableToAllocate >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {formatMoney(availableToAllocate)}
+            </span>
+          </div>
+        </div>
+      </button>
+    );
+  }
 
   return (
     <button
@@ -566,7 +661,7 @@ function BudgetCard({
           <span className="text-sm font-semibold text-slate-500">{formatMoney(budget.amount)}</span>
         </div>
         <span className={`text-sm font-semibold ${progress >= 100 ? 'text-red-500' : 'text-gray-600'}`}>
-          {Math.round(progress)}%
+          {formatPercentage(progress)}
         </span>
       </div>
 

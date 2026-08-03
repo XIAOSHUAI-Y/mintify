@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, Cell, Legend, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { buildMonthlyBudgetOverview, type BudgetChange, type SpendingChange } from '../../domain/budgetAnalytics';
-import { formatMoney } from '../../utils/helpers';
+import { formatMoney, formatPercentage } from '../../utils/helpers';
 import type { Budget, Category, Transaction } from '../../types';
 import HorizontalScrollArea from '../HorizontalScrollArea';
 
@@ -164,9 +164,9 @@ function StatusBadge({ status, utilization }: { status: 'no-budget' | 'on-track'
     return <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">未设置</span>;
   }
   if (status === 'overspent') {
-    return <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-600">超支 {Math.round(utilization ?? 0)}%</span>;
+    return <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-600">超支 {formatPercentage(utilization ?? 0)}</span>;
   }
-  return <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">已用 {Math.round(utilization ?? 0)}%</span>;
+  return <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">已用 {formatPercentage(utilization ?? 0)}</span>;
 }
 
 function ChangeGroup<T>({

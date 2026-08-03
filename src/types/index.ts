@@ -97,6 +97,8 @@ export interface ReserveEntry {
   sourcePlanId?: string;
   targetType: ReserveEntryTargetType;
   targetPlanId?: string;
+  /** 周期结算会释放已结束月份的分类预算；普通转入仍只能使用尚未分配预算。 */
+  kind?: 'period-settlement';
   /** 从预算转入时记录来源月份，确保对应月份的可用预算会同步扣减。 */
   sourceYearMonth?: string;
   note: string;

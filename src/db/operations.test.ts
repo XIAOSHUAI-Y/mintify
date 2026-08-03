@@ -36,6 +36,7 @@ import {
   getSavingsPlans,
   saveReserveEntry,
   saveSavingsPlan,
+  settlePreviousMonthBudgetReserve,
   saveCategory,
   saveBudget,
   saveBudgetViewPreference,
@@ -367,6 +368,41 @@ describe('结余流水写入校验', () => {
       createdAt: 1,
     })).rejects.toThrow('超过该月可用预算');
     expect(await getReserveEntries('daily-ledger')).toEqual([]);
+  });
+
+  it('月初只结算一次上一周期包含分类余款在内的实际剩余', async () => {
+    await saveBudget({
+      id: 'overall-aug',
+      ledgerId: 'daily-ledger',
+      amount: 6000,
+      period: 'monthly',
+      yearMonth: '2026-08',
+      includeOverall: true,
+      createdAt: 1,
+    });
+    await saveBudget({
+      id: 'food-aug',
+      ledgerId: 'daily-ledger',
+      categoryId: 'food',
+      amount: 1000,
+      period: 'monthly',
+      yearMonth: '2026-08',
+      includeOverall: false,
+      createdAt: 1,
+    });
+
+    const now = new Date(2026, 8, 1, 0, 5).getTime();
+    const first = await settlePreviousMonthBudgetReserve('daily-ledger', now);
+    const second = await settlePreviousMonthBudgetReserve('daily-ledger', now);
+
+    expect(first).toMatchObject({
+      amount: 6000,
+      sourceType: 'budget',
+      targetType: 'general',
+      sourceYearMonth: '2026-08',
+    });
+    expect(second).toBeNull();
+    expect(await getReserveEntries('daily-ledger')).toEqual([first]);
   });
 
   it('通用池内部划转后总结余不变且不能透支', async () => {
