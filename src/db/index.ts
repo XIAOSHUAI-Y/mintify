@@ -7,6 +7,8 @@ import type {
   FundCategory,
   Ledger,
   RecurringRule,
+  ReserveEntry,
+  SavingsPlan,
   Transaction,
 } from '../types';
 import { PRESET_TAGS } from '../data/seed';
@@ -57,6 +59,21 @@ interface MintifyDB extends DBSchema {
       'by-ledger': string;
     };
   };
+  savingsPlans: {
+    key: string;
+    value: SavingsPlan;
+    indexes: {
+      'by-ledger': string;
+    };
+  };
+  reserveEntries: {
+    key: string;
+    value: ReserveEntry;
+    indexes: {
+      'by-ledger': string;
+      'by-occurred': number;
+    };
+  };
   settings: {
     key: string;
     value: AppSettings;
@@ -64,7 +81,7 @@ interface MintifyDB extends DBSchema {
 }
 
 export const DB_NAME = 'mintify-db';
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   id: 'app-settings',
@@ -112,6 +129,15 @@ export const getDB = () => {
         if (oldVersion < 5) {
           const fundCategoryStore = db.createObjectStore('fundCategories', { keyPath: 'id' });
           fundCategoryStore.createIndex('by-ledger', 'ledgerId');
+        }
+
+        if (oldVersion < 6) {
+          const planStore = db.createObjectStore('savingsPlans', { keyPath: 'id' });
+          planStore.createIndex('by-ledger', 'ledgerId');
+
+          const reserveStore = db.createObjectStore('reserveEntries', { keyPath: 'id' });
+          reserveStore.createIndex('by-ledger', 'ledgerId');
+          reserveStore.createIndex('by-occurred', 'occurredAt');
         }
       },
     });
@@ -234,6 +260,18 @@ export async function getFundTransactionsByLedger(ledgerId: string): Promise<Fun
 export async function getFundCategoriesByLedger(ledgerId: string): Promise<FundCategory[]> {
   const db = await getDB();
   const index = db.transaction('fundCategories').store.index('by-ledger');
+  return index.getAll(ledgerId);
+}
+
+export async function getSavingsPlansByLedger(ledgerId: string): Promise<SavingsPlan[]> {
+  const db = await getDB();
+  const index = db.transaction('savingsPlans').store.index('by-ledger');
+  return index.getAll(ledgerId);
+}
+
+export async function getReserveEntriesByLedger(ledgerId: string): Promise<ReserveEntry[]> {
+  const db = await getDB();
+  const index = db.transaction('reserveEntries').store.index('by-ledger');
   return index.getAll(ledgerId);
 }
 

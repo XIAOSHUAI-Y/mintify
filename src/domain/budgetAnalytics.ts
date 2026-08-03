@@ -1,4 +1,4 @@
-import type { Budget, Transaction } from '../types';
+import type { Budget, ReserveEntry, Transaction } from '../types';
 import { getNetSpendingByCategory } from './transactionAccounting';
 
 export type BudgetUsageStatus = 'no-budget' | 'on-track' | 'overspent';
@@ -24,6 +24,7 @@ export interface MonthlyBudgetOverview {
   month: number;
   budgetAmount: number;
   spentAmount: number;
+  savedAmount: number;
   utilization: number | null;
   status: BudgetUsageStatus;
   budgetChanges: BudgetChange[];
@@ -35,6 +36,7 @@ interface BuildMonthlyBudgetOverviewOptions {
   transactions: Transaction[];
   ledgerId: string;
   year: number;
+  reserveEntries?: ReserveEntry[];
 }
 
 interface CalculateBudgetAllocationSummaryOptions {
@@ -42,6 +44,7 @@ interface CalculateBudgetAllocationSummaryOptions {
   transactions: Transaction[];
   ledgerId: string;
   yearMonth: string;
+  reserveEntries?: ReserveEntry[];
 }
 
 export interface BudgetAllocationSummary {
@@ -49,6 +52,7 @@ export interface BudgetAllocationSummary {
   allocatedAmount: number;
   categoryOverspendAmount: number;
   unbudgetedSpendingAmount: number;
+  reservedAmount: number;
   balanceAmount: number;
 }
 
@@ -61,6 +65,7 @@ export function calculateBudgetAllocationSummary({
   transactions,
   ledgerId,
   yearMonth,
+  reserveEntries = [],
 }: CalculateBudgetAllocationSummaryOptions): BudgetAllocationSummary {
   const monthBudgets = budgets.filter((budget) =>
     budget.ledgerId === ledgerId && budget.yearMonth === yearMonth && budget.period === 'monthly');
@@ -80,6 +85,12 @@ export function calculateBudgetAllocationSummary({
   const spendingByCategory = getNetSpendingByCategory(ledgerTransactions, yearMonth);
   let categoryOverspendAmount = 0;
   let unbudgetedSpendingAmount = 0;
+  const reservedAmount = reserveEntries
+    .filter((entry) =>
+      entry.ledgerId === ledgerId
+      && entry.sourceType === 'budget'
+      && entry.sourceYearMonth === yearMonth)
+    .reduce((sum, entry) => sum + entry.amount, 0);
 
   for (const [categoryId, spentAmount] of spendingByCategory) {
     const categoryBudget = categoryBudgetById.get(categoryId);
@@ -95,7 +106,12 @@ export function calculateBudgetAllocationSummary({
     allocatedAmount,
     categoryOverspendAmount,
     unbudgetedSpendingAmount,
-    balanceAmount: overallBudgetAmount - allocatedAmount - categoryOverspendAmount - unbudgetedSpendingAmount,
+    reservedAmount,
+    balanceAmount: overallBudgetAmount
+      - allocatedAmount
+      - categoryOverspendAmount
+      - unbudgetedSpendingAmount
+      - reservedAmount,
   };
 }
 
@@ -104,6 +120,7 @@ export function buildMonthlyBudgetOverview({
   transactions,
   ledgerId,
   year,
+  reserveEntries = [],
 }: BuildMonthlyBudgetOverviewOptions): MonthlyBudgetOverview[] {
   const ledgerBudgets = budgets.filter((budget) => budget.ledgerId === ledgerId && budget.period === 'monthly');
   const ledgerTransactions = transactions.filter((transaction) => transaction.ledgerId === ledgerId);
@@ -118,14 +135,22 @@ export function buildMonthlyBudgetOverview({
     const previousSpending = getNetSpendingByCategory(ledgerTransactions, previousYearMonth);
     const budgetAmount = getMonthlyBudgetAmount(currentBudgets);
     const spentAmount = [...currentSpending.values()].reduce((sum, amount) => sum + amount, 0);
+    const savedAmount = reserveEntries
+      .filter((entry) =>
+        entry.ledgerId === ledgerId
+        && entry.sourceType === 'budget'
+        && entry.sourceYearMonth === yearMonth)
+      .reduce((sum, entry) => sum + entry.amount, 0);
+    const occupiedAmount = spentAmount + savedAmount;
 
     return {
       yearMonth,
       month,
       budgetAmount,
       spentAmount,
-      utilization: budgetAmount > 0 ? (spentAmount / budgetAmount) * 100 : null,
-      status: budgetAmount <= 0 ? 'no-budget' : spentAmount > budgetAmount ? 'overspent' : 'on-track',
+      savedAmount,
+      utilization: budgetAmount > 0 ? (occupiedAmount / budgetAmount) * 100 : null,
+      status: budgetAmount <= 0 ? 'no-budget' : occupiedAmount > budgetAmount ? 'overspent' : 'on-track',
       budgetChanges: compareBudgetConfigurations(previousBudgets, currentBudgets),
       spendingChanges: compareCategorySpending(previousSpending, currentSpending),
     };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Budget, Transaction } from '../types';
+import type { Budget, ReserveEntry, Transaction } from '../types';
 import { buildMonthlyBudgetOverview, calculateBudgetAllocationSummary } from './budgetAnalytics';
 
 describe('月度预算图表数据', () => {
@@ -42,6 +42,36 @@ describe('月度预算图表数据', () => {
       { categoryId: 'transport', previousAmount: 100, currentAmount: 0, delta: -100 },
     ]);
   });
+
+  it('把预算转入结余计入占用率，但与实际支出分开展示', () => {
+    const budgets = [budget('overall-aug', '2026-08', 1000, true)];
+    const transactions = [expense('food-aug', 'food', 800, new Date(2026, 7, 2).getTime())];
+    const reserveEntries: ReserveEntry[] = [{
+      id: 'saving-aug',
+      ledgerId: 'daily-ledger',
+      amount: 300,
+      sourceType: 'budget',
+      targetType: 'general',
+      sourceYearMonth: '2026-08',
+      note: '',
+      occurredAt: new Date(2026, 7, 3).getTime(),
+      createdAt: 1,
+    }];
+
+    const august = buildMonthlyBudgetOverview({
+      budgets,
+      transactions,
+      reserveEntries,
+      ledgerId: 'daily-ledger',
+      year: 2026,
+    })[7];
+    expect(august).toMatchObject({
+      spentAmount: 800,
+      savedAmount: 300,
+      status: 'overspent',
+    });
+    expect(august.utilization).toBeCloseTo(110);
+  });
 });
 
 describe('预算分配结余', () => {
@@ -67,6 +97,7 @@ describe('预算分配结余', () => {
       allocatedAmount: 1000,
       categoryOverspendAmount: 150,
       unbudgetedSpendingAmount: 200,
+      reservedAmount: 0,
       balanceAmount: 4650,
     });
   });
@@ -94,6 +125,32 @@ describe('预算分配结余', () => {
       categoryOverspendAmount: 0,
       balanceAmount: 750,
     });
+  });
+
+  it('分类预算结余会扣除当月已存金额', () => {
+    const budgets = [
+      budget('overall-aug', '2026-08', 1000, true),
+      budget('food-aug', '2026-08', 300, false, 'food'),
+    ];
+    const reserveEntries: ReserveEntry[] = [{
+      id: 'saving-aug',
+      ledgerId: 'daily-ledger',
+      amount: 200,
+      sourceType: 'budget',
+      targetType: 'general',
+      sourceYearMonth: '2026-08',
+      note: '',
+      occurredAt: 1,
+      createdAt: 1,
+    }];
+
+    expect(calculateBudgetAllocationSummary({
+      budgets,
+      transactions: [],
+      reserveEntries,
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+    })).toMatchObject({ reservedAmount: 200, balanceAmount: 500 });
   });
 });
 

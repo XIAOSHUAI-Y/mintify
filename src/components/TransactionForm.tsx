@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DatePicker } from 'antd-mobile';
-import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw } from 'lucide-react';
+import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
 import HorizontalScrollArea from './HorizontalScrollArea';
-import { generateId, formatMoney, formatShortDate } from '../utils/helpers';
+import { generateId, formatMoney, formatShortDate, getYearMonth } from '../utils/helpers';
 import { PRESET_TAGS } from '../data/seed';
 import type { Transaction } from '../types';
 import { getRemainingRefundableAmount } from '../domain/transactionAccounting';
+import { calculateMonthlyBudgetAvailability } from '../domain/reserveLedger';
+
+type EntryMode = Transaction['type'] | 'saving';
 
 interface TransactionFormProps {
   onClose: () => void;
@@ -19,11 +22,15 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     currentLedger,
     categories,
     transactions,
+    budgets,
+    savingsPlans,
+    reserveEntries,
     addTransaction,
+    addReserveEntry,
     updateTransaction,
   } = useApp();
 
-  const [type, setType] = useState<Transaction['type']>(editingTransaction?.type || 'expense');
+  const [type, setType] = useState<EntryMode>(editingTransaction?.type || 'expense');
   const [amount, setAmount] = useState(editingTransaction ? String(editingTransaction.amount) : '');
   const [selectedCategoryId, setSelectedCategoryId] = useState(editingTransaction?.categoryId || '');
   const [occurredAt, setOccurredAt] = useState(editingTransaction?.occurredAt || Date.now());
@@ -39,7 +46,25 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   );
   const [linkedExpenseId, setLinkedExpenseId] = useState(editingTransaction?.linkedExpenseTransactionId || '');
   const [saveError, setSaveError] = useState('');
+  const [savingTarget, setSavingTarget] = useState('general');
   const isRefundMode = type === 'income' && incomeMode === 'refund';
+  const isSavingMode = type === 'saving';
+  const activeSavingsPlans = useMemo(
+    () => savingsPlans.filter((plan) => !plan.archivedAt),
+    [savingsPlans],
+  );
+  const savingAvailability = useMemo(
+    () => currentLedger
+      ? calculateMonthlyBudgetAvailability({
+          budgets,
+          transactions,
+          reserveEntries,
+          ledgerId: currentLedger.id,
+          yearMonth: getYearMonth(occurredAt),
+        })
+      : { budgetAmount: 0, spentAmount: 0, reservedAmount: 0, availableAmount: 0 },
+    [budgets, currentLedger, occurredAt, reserveEntries, transactions],
+  );
 
   const filteredCategories = useMemo(
     () => categories
@@ -64,6 +89,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   [editingTransaction?.id, transactions]);
 
   useEffect(() => {
+    if (isSavingMode) return;
     if (isRefundMode) {
       setSelectedCategoryId(refundCategory?.id || '');
       return;
@@ -73,7 +99,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     if (!categoryStillMatchesType) {
       setSelectedCategoryId(filteredCategories[0]?.id || '');
     }
-  }, [filteredCategories, isRefundMode, refundCategory?.id, selectedCategoryId]);
+  }, [filteredCategories, isRefundMode, isSavingMode, refundCategory?.id, selectedCategoryId]);
 
   const handleNumber = (num: string) => {
     if (num === '.') {
@@ -110,7 +136,36 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   };
 
   const handleSave = async (keepOpen = false) => {
-    if (!currentLedger || !selectedCategoryId || !amount || isNaN(Number(amount))) return;
+    if (!currentLedger || !amount || isNaN(Number(amount))) return;
+    if (isSavingMode) {
+      setSaveError('');
+      try {
+        await addReserveEntry({
+          id: generateId(),
+          ledgerId: currentLedger.id,
+          amount: Number(amount),
+          sourceType: 'budget',
+          targetType: savingTarget === 'general' ? 'general' : 'plan',
+          targetPlanId: savingTarget === 'general' ? undefined : savingTarget,
+          sourceYearMonth: getYearMonth(occurredAt),
+          note: note || (savingTarget === 'general' ? '存入通用结余池' : '存入攒钱计划'),
+          occurredAt,
+          createdAt: Date.now(),
+        });
+      } catch (error) {
+        setSaveError(error instanceof Error ? error.message : '保存失败，请重试');
+        return;
+      }
+      if (keepOpen) {
+        setAmount('');
+        setNote('');
+        setOccurredAt(Date.now());
+        return;
+      }
+      onClose();
+      return;
+    }
+    if (!selectedCategoryId) return;
     if (isRefundMode && !linkedExpenseId) return;
     setSaveError('');
 
@@ -156,7 +211,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   const canSave = Boolean(
     amount
     && Number(amount) > 0
-    && selectedCategoryId
+    && (isSavingMode ? savingTarget : selectedCategoryId)
     && (!isRefundMode || linkedExpenseId),
   );
 
@@ -185,7 +240,9 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       {/* Type Selector */}
       <div className="mb-3 px-4">
         <div className="flex rounded-xl bg-slate-100 p-1">
-          {(['expense', 'income', 'transfer'] as const).map((t) => (
+          {((editingTransaction
+            ? ['expense', 'income', 'transfer']
+            : ['expense', 'income', 'transfer', 'saving']) as EntryMode[]).map((t) => (
             <button
               key={t}
               onClick={() => {
@@ -198,7 +255,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                 type === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
               }`}
             >
-              {t === 'expense' ? '支出' : t === 'income' ? '收入' : '转账'}
+              {t === 'expense' ? '支出' : t === 'income' ? '收入' : t === 'transfer' ? '转账' : '存钱'}
             </button>
           ))}
         </div>
@@ -240,13 +297,15 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
           <Calendar size={16} />
           {formatShortDate(occurredAt)}
         </button>
-        <button
-          onClick={() => setShowTagPicker(true)}
-          className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
-        >
-          <Tag size={16} />
-          {tags.length > 0 ? tags.join(',') : '标签'}
-        </button>
+        {!isSavingMode && (
+          <button
+            onClick={() => setShowTagPicker(true)}
+            className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
+          >
+            <Tag size={16} />
+            {tags.length > 0 ? tags.join(',') : '标签'}
+          </button>
+        )}
         <button
           onClick={() => setShowNoteInput(true)}
           className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
@@ -254,11 +313,13 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
           <FileText size={16} />
           {note || '备注'}
         </button>
-        <label className="flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm">
-          <FileImage size={16} />
-          {photo ? '已选图片' : '图片'}
-          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
-        </label>
+        {!isSavingMode && (
+          <label className="flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm">
+            <FileImage size={16} />
+            {photo ? '已选图片' : '图片'}
+            <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+          </label>
+        )}
       </HorizontalScrollArea>
 
       {photo && (
@@ -273,7 +334,61 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
 
       {/* 退款必须显式绑定原支出；普通收支继续沿用原有分类网格。 */}
       <div className="flex-1 overflow-y-auto px-4 pb-3">
-        {isRefundMode ? (
+        {isSavingMode ? (
+          <>
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-800">存到哪里</div>
+              <div className="text-xs text-slate-400">
+                {savingAvailability.budgetAmount > 0
+                  ? `本月可存 ${formatMoney(savingAvailability.availableAmount)}`
+                  : '本月还没有预算'}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => setSavingTarget('general')}
+                aria-pressed={savingTarget === 'general'}
+                className={`flex min-h-18 w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-colors ${
+                  savingTarget === 'general' ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
+                }`}
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-400 text-amber-950">
+                  <Landmark size={21} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-slate-800">通用结余池</span>
+                  <span className="mt-0.5 block text-xs text-slate-400">先存下来，以后再决定用途</span>
+                </span>
+              </button>
+              {activeSavingsPlans.map((plan) => (
+                <button
+                  key={plan.id}
+                  onClick={() => setSavingTarget(plan.id)}
+                  aria-pressed={savingTarget === plan.id}
+                  className={`flex min-h-18 w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-colors ${
+                    savingTarget === plan.id ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
+                  }`}
+                >
+                  <span
+                    className="flex h-11 w-11 items-center justify-center rounded-xl text-white"
+                    style={{ backgroundColor: plan.color }}
+                  >
+                    <PiggyBank size={21} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-slate-800">{plan.name}</span>
+                    <span className="mt-0.5 block text-xs text-slate-400">
+                      {plan.targetAmount ? `目标 ${formatMoney(plan.targetAmount)}` : '慢慢攒，不设压力'}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-xs leading-5 text-slate-500">
+              这笔钱会减少当月可用预算，但不会算作消费，也不会影响分类支出图表。
+            </div>
+          </>
+        ) : isRefundMode ? (
           <>
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
