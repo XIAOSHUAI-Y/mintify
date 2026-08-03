@@ -20,6 +20,7 @@ import {
   saveAppSettings,
 } from './index';
 import {
+  archiveSavingsPlan,
   deleteCategory,
   deleteFundCategory,
   exportData,
@@ -36,6 +37,7 @@ import {
   getSavingsPlans,
   saveReserveEntry,
   saveSavingsPlan,
+  settlePreviousMonthBudgetReserve,
   saveCategory,
   saveBudget,
   saveBudgetViewPreference,
@@ -369,6 +371,41 @@ describe('结余流水写入校验', () => {
     expect(await getReserveEntries('daily-ledger')).toEqual([]);
   });
 
+  it('月初只结算一次上一周期包含分类余款在内的实际剩余', async () => {
+    await saveBudget({
+      id: 'overall-aug',
+      ledgerId: 'daily-ledger',
+      amount: 6000,
+      period: 'monthly',
+      yearMonth: '2026-08',
+      includeOverall: true,
+      createdAt: 1,
+    });
+    await saveBudget({
+      id: 'food-aug',
+      ledgerId: 'daily-ledger',
+      categoryId: 'food',
+      amount: 1000,
+      period: 'monthly',
+      yearMonth: '2026-08',
+      includeOverall: false,
+      createdAt: 1,
+    });
+
+    const now = new Date(2026, 8, 1, 0, 5).getTime();
+    const first = await settlePreviousMonthBudgetReserve('daily-ledger', now);
+    const second = await settlePreviousMonthBudgetReserve('daily-ledger', now);
+
+    expect(first).toMatchObject({
+      amount: 6000,
+      sourceType: 'budget',
+      targetType: 'general',
+      sourceYearMonth: '2026-08',
+    });
+    expect(second).toBeNull();
+    expect(await getReserveEntries('daily-ledger')).toEqual([first]);
+  });
+
   it('通用池内部划转后总结余不变且不能透支', async () => {
     const plan: SavingsPlan = {
       id: 'travel',
@@ -411,5 +448,192 @@ describe('结余流水写入校验', () => {
       occurredAt: 2,
       createdAt: 2,
     })).rejects.toThrow('来源结余不足');
+  });
+
+  it('计划资金只能划入已经设置的本月总预算', async () => {
+    const plan: SavingsPlan = {
+      id: 'travel',
+      ledgerId: 'daily-ledger',
+      name: '旅行',
+      icon: 'plane',
+      color: '#3B82F6',
+      createdAt: 1,
+    };
+    await saveSavingsPlan(plan);
+    await saveBudget({
+      id: 'overall-jul',
+      ledgerId: plan.ledgerId,
+      amount: 500,
+      period: 'monthly',
+      yearMonth: '2026-07',
+      includeOverall: true,
+      createdAt: 1,
+    });
+    await saveReserveEntry({
+      id: 'july-to-travel',
+      ledgerId: plan.ledgerId,
+      amount: 300,
+      sourceType: 'budget',
+      sourceYearMonth: '2026-07',
+      targetType: 'plan',
+      targetPlanId: plan.id,
+      note: '',
+      occurredAt: 1,
+      createdAt: 1,
+    });
+
+    await expect(saveReserveEntry({
+      id: 'travel-to-august',
+      ledgerId: plan.ledgerId,
+      amount: 100,
+      sourceType: 'plan',
+      sourcePlanId: plan.id,
+      targetType: 'budget',
+      targetYearMonth: '2026-08',
+      note: '',
+      occurredAt: 2,
+      createdAt: 2,
+    })).rejects.toThrow('请先设置本月总预算');
+  });
+
+  it('保存计划划回本月预算的内部流水', async () => {
+    const plan: SavingsPlan = {
+      id: 'travel',
+      ledgerId: 'daily-ledger',
+      name: '旅行',
+      icon: 'plane',
+      color: '#3B82F6',
+      createdAt: 1,
+    };
+    await saveSavingsPlan(plan);
+    for (const [id, yearMonth] of [['overall-jul', '2026-07'], ['overall-aug', '2026-08']] as const) {
+      await saveBudget({
+        id,
+        ledgerId: plan.ledgerId,
+        amount: 500,
+        period: 'monthly',
+        yearMonth,
+        includeOverall: true,
+        createdAt: 1,
+      });
+    }
+    await saveReserveEntry({
+      id: 'july-to-travel',
+      ledgerId: plan.ledgerId,
+      amount: 300,
+      sourceType: 'budget',
+      sourceYearMonth: '2026-07',
+      targetType: 'plan',
+      targetPlanId: plan.id,
+      note: '',
+      occurredAt: 1,
+      createdAt: 1,
+    });
+
+    const withdrawal: ReserveEntry = {
+      id: 'travel-to-august',
+      ledgerId: plan.ledgerId,
+      amount: 100,
+      sourceType: 'plan',
+      sourcePlanId: plan.id,
+      targetType: 'budget',
+      targetYearMonth: '2026-08',
+      note: '划入 8 月预算',
+      occurredAt: 2,
+      createdAt: 2,
+    };
+    await saveReserveEntry(withdrawal);
+
+    expect(await getReserveEntries(plan.ledgerId)).toContainEqual(withdrawal);
+  });
+
+  it('删除有余额的计划时原子转移全部余额并归档计划', async () => {
+    const plan: SavingsPlan = {
+      id: 'travel',
+      ledgerId: 'daily-ledger',
+      name: '旅行',
+      icon: 'plane',
+      color: '#3B82F6',
+      createdAt: 1,
+    };
+    await saveSavingsPlan(plan);
+    await saveBudget({
+      id: 'overall-jul',
+      ledgerId: plan.ledgerId,
+      amount: 500,
+      period: 'monthly',
+      yearMonth: '2026-07',
+      includeOverall: true,
+      createdAt: 1,
+    });
+    await saveReserveEntry({
+      id: 'july-to-travel',
+      ledgerId: plan.ledgerId,
+      amount: 300,
+      sourceType: 'budget',
+      sourceYearMonth: '2026-07',
+      targetType: 'plan',
+      targetPlanId: plan.id,
+      note: '',
+      occurredAt: 1,
+      createdAt: 1,
+    });
+
+    const archived = await archiveSavingsPlan({
+      planId: plan.id,
+      archivedAt: 10,
+      transferEntry: {
+        id: 'travel-to-general',
+        ledgerId: plan.ledgerId,
+        amount: 300,
+        sourceType: 'plan',
+        sourcePlanId: plan.id,
+        targetType: 'general',
+        note: '删除计划时转入通用结余池',
+        occurredAt: 10,
+        createdAt: 10,
+      },
+    });
+
+    expect(archived).toMatchObject({ id: plan.id, archivedAt: 10 });
+    expect(await getSavingsPlans(plan.ledgerId)).toEqual([archived]);
+    expect(await getReserveEntries(plan.ledgerId)).toHaveLength(2);
+  });
+
+  it('不允许直接删除仍有余额的攒钱计划', async () => {
+    const plan: SavingsPlan = {
+      id: 'emergency',
+      ledgerId: 'daily-ledger',
+      name: '备用金',
+      icon: 'piggy-bank',
+      color: '#F59E0B',
+      createdAt: 1,
+    };
+    await saveSavingsPlan(plan);
+    await saveBudget({
+      id: 'overall-jul',
+      ledgerId: plan.ledgerId,
+      amount: 100,
+      period: 'monthly',
+      yearMonth: '2026-07',
+      includeOverall: true,
+      createdAt: 1,
+    });
+    await saveReserveEntry({
+      id: 'fund-emergency',
+      ledgerId: plan.ledgerId,
+      amount: 100,
+      sourceType: 'budget',
+      sourceYearMonth: '2026-07',
+      targetType: 'plan',
+      targetPlanId: plan.id,
+      note: '',
+      occurredAt: 1,
+      createdAt: 1,
+    });
+
+    await expect(archiveSavingsPlan({ planId: plan.id, archivedAt: 2 }))
+      .rejects.toThrow('必须完整转移剩余资金');
+    expect((await getSavingsPlans(plan.ledgerId))[0].archivedAt).toBeUndefined();
   });
 });

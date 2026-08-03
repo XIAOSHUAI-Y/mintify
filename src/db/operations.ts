@@ -35,7 +35,11 @@ import {
   migrateLegacySettings,
   saveAppSettings,
 } from './index';
-import { calculateMonthlyBudgetAvailability, calculateReserveBalances } from '../domain/reserveLedger';
+import {
+  calculateMonthlyBudgetAvailability,
+  calculateMonthlyPeriodSettlement,
+  calculateReserveBalances,
+} from '../domain/reserveLedger';
 import {
   EXPENSE_CATEGORIES,
   FUND_EXPENSE_CATEGORIES,
@@ -397,10 +401,66 @@ export async function getReserveEntries(ledgerId: string): Promise<ReserveEntry[
 }
 
 /**
+ * 跨月后首次启动时结算上一周期。稳定主键保证定时器、前台恢复和重复刷新并发触发时也只会落一笔流水。
+ * PWA 被系统挂起时无法保证 0 点执行，因此 `now` 表示应用实际恢复运行的时间。
+ */
+export async function settlePreviousMonthBudgetReserve(
+  ledgerId: string,
+  now = Date.now(),
+): Promise<ReserveEntry | null> {
+  const currentDate = new Date(now);
+  const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+  const sourceYearMonth = getYearMonth(previousMonth.getTime());
+  const entryId = `auto-budget-settlement:${ledgerId}:${sourceYearMonth}`;
+  if (await getById<ReserveEntry>('reserveEntries', entryId)) return null;
+
+  const [budgets, transactions, reserveEntries] = await Promise.all([
+    getBudgetsByLedger(ledgerId),
+    getTransactionsByLedger(ledgerId),
+    getReserveEntriesByLedger(ledgerId),
+  ]);
+  const availability = calculateMonthlyPeriodSettlement({
+    budgets,
+    transactions,
+    reserveEntries,
+    ledgerId,
+    yearMonth: sourceYearMonth,
+  });
+  if (availability.availableAmount <= 0) return null;
+
+  const entry: ReserveEntry = {
+    id: entryId,
+    ledgerId,
+    amount: availability.availableAmount,
+    sourceType: 'budget',
+    targetType: 'general',
+    kind: 'period-settlement',
+    sourceYearMonth,
+    note: `${Number(sourceYearMonth.slice(5))} 月预算自动结算`,
+    occurredAt: new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getTime(),
+    createdAt: now,
+  };
+  try {
+    await saveReserveEntry(entry);
+  } catch (error) {
+    // 前台恢复与月界定时器可能同时触发；另一流程已写入相同稳定主键时按成功处理。
+    if (await getById<ReserveEntry>('reserveEntries', entryId)) return null;
+    throw error;
+  }
+  return entry;
+}
+
+/**
  * 写入前同时校验来源余额与预算可用额，避免多个 UI 入口产生负数结余。
  * ReserveEntry 采用只追加策略，已经存在的流水不能被静默覆盖。
  */
 export async function saveReserveEntry(entry: ReserveEntry): Promise<void> {
+  await validateReserveEntry(entry);
+  await putItem('reserveEntries', entry);
+}
+
+/** 将结余流水的所有入口收敛到同一套校验，归档计划的原子事务也复用这些边界。 */
+async function validateReserveEntry(entry: ReserveEntry): Promise<void> {
   if (!Number.isFinite(entry.amount) || entry.amount <= 0) throw new Error('转入金额必须大于 0');
   if (await getById<ReserveEntry>('reserveEntries', entry.id)) throw new Error('该结余流水已经存在');
 
@@ -409,8 +469,22 @@ export async function saveReserveEntry(entry: ReserveEntry): Promise<void> {
     ? plans.find((plan) => plan.id === entry.targetPlanId && !plan.archivedAt)
     : undefined;
   if (entry.targetType === 'plan' && !targetPlan) throw new Error('目标攒钱计划不存在或已归档');
-  if (entry.sourceType === 'plan' && !plans.some((plan) => plan.id === entry.sourcePlanId)) {
-    throw new Error('来源攒钱计划不存在');
+  if (entry.sourceType === 'plan' && !plans.some((plan) => plan.id === entry.sourcePlanId && !plan.archivedAt)) {
+    throw new Error('来源攒钱计划不存在或已归档');
+  }
+  if (entry.targetType === 'budget') {
+    if (!entry.targetYearMonth || !/^\d{4}-(0[1-9]|1[0-2])$/.test(entry.targetYearMonth)) {
+      throw new Error('预算目标月份不正确');
+    }
+    if (entry.targetYearMonth !== getYearMonth(Date.now())) {
+      throw new Error('只能划入当前月份预算');
+    }
+    const targetBudgets = await getBudgetsByLedger(entry.ledgerId);
+    const hasOverallBudget = targetBudgets.some((budget) =>
+      budget.period === 'monthly'
+      && budget.includeOverall
+      && budget.yearMonth === entry.targetYearMonth);
+    if (!hasOverallBudget) throw new Error('请先设置本月总预算');
   }
   if (
     entry.sourceType === 'plan'
@@ -429,13 +503,21 @@ export async function saveReserveEntry(entry: ReserveEntry): Promise<void> {
       getBudgetsByLedger(entry.ledgerId),
       getTransactionsByLedger(entry.ledgerId),
     ]);
-    const availability = calculateMonthlyBudgetAvailability({
-      budgets,
-      transactions,
-      reserveEntries: entries,
-      ledgerId: entry.ledgerId,
-      yearMonth: entry.sourceYearMonth,
-    });
+    const availability = entry.kind === 'period-settlement'
+      ? calculateMonthlyPeriodSettlement({
+          budgets,
+          transactions,
+          reserveEntries: entries,
+          ledgerId: entry.ledgerId,
+          yearMonth: entry.sourceYearMonth,
+        })
+      : calculateMonthlyBudgetAvailability({
+          budgets,
+          transactions,
+          reserveEntries: entries,
+          ledgerId: entry.ledgerId,
+          yearMonth: entry.sourceYearMonth,
+        });
     if (entry.amount > availability.availableAmount) throw new Error('转入金额超过该月可用预算');
   } else {
     const balances = calculateReserveBalances(plans, entries);
@@ -445,7 +527,46 @@ export async function saveReserveEntry(entry: ReserveEntry): Promise<void> {
     if (entry.amount > sourceBalance) throw new Error('来源结余不足');
   }
 
-  await putItem('reserveEntries', entry);
+}
+
+export async function archiveSavingsPlan({
+  planId,
+  transferEntry,
+  archivedAt,
+}: {
+  planId: string;
+  transferEntry?: ReserveEntry;
+  archivedAt: number;
+}): Promise<SavingsPlan> {
+  const plan = await getById<SavingsPlan>('savingsPlans', planId);
+  if (!plan || plan.archivedAt) throw new Error('攒钱计划不存在或已删除');
+
+  const [plans, entries] = await Promise.all([
+    getSavingsPlansByLedger(plan.ledgerId),
+    getReserveEntriesByLedger(plan.ledgerId),
+  ]);
+  const balance = calculateReserveBalances(plans, entries).plans.get(plan.id) ?? 0;
+
+  if (balance > 0) {
+    const validTransfer = transferEntry
+      && transferEntry.ledgerId === plan.ledgerId
+      && transferEntry.sourceType === 'plan'
+      && transferEntry.sourcePlanId === plan.id
+      && transferEntry.amount === balance;
+    if (!validTransfer) throw new Error('删除计划前必须完整转移剩余资金');
+    await validateReserveEntry(transferEntry);
+  } else if (transferEntry) {
+    throw new Error('余额为零的计划不需要转移资金');
+  }
+
+  const archivedPlan = { ...plan, archivedAt };
+  const db = await getDB();
+  const write = db.transaction(['savingsPlans', 'reserveEntries'], 'readwrite');
+  // 资金转移与计划归档必须原子提交，避免余额留在已经隐藏的计划中。
+  if (transferEntry) await write.objectStore('reserveEntries').put(transferEntry);
+  await write.objectStore('savingsPlans').put(archivedPlan);
+  await write.done;
+  return archivedPlan;
 }
 
 export async function saveBudgetViewPreference(
@@ -766,12 +887,14 @@ function parseBackup(json: string): BackupData {
       && hasNumber(item, 'amount')
       && (item.amount as number) > 0
       && (item.sourceType === 'budget' || item.sourceType === 'general' || item.sourceType === 'plan')
-      && (item.targetType === 'general' || item.targetType === 'plan')
+      && (item.targetType === 'general' || item.targetType === 'plan' || item.targetType === 'budget')
+      && (item.kind === undefined || item.kind === 'period-settlement')
       && hasNumber(item, 'occurredAt')
       && hasNumber(item, 'createdAt')
       && (item.sourceType !== 'budget' || hasString(item, 'sourceYearMonth'))
       && (item.sourceType !== 'plan' || hasString(item, 'sourcePlanId'))
-      && (item.targetType !== 'plan' || hasString(item, 'targetPlanId')));
+      && (item.targetType !== 'plan' || hasString(item, 'targetPlanId'))
+      && (item.targetType !== 'budget' || hasString(item, 'targetYearMonth')));
   const settings = rawData.settings === undefined
     ? [{ ...DEFAULT_APP_SETTINGS }]
     : validateRecords<AppSettings>(rawData.settings, '设置', (item) =>

@@ -1,16 +1,14 @@
 import { useMemo, useState } from 'react';
-import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight, Shapes, Repeat2, WalletCards } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight, PiggyBank, Shapes, Repeat2, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import TransactionDetail from '../components/TransactionDetail';
-import CategoryPage from '../pages/CategoryPage';
-import RecurringPage from '../pages/RecurringPage';
-import FundPage from '../pages/FundPage';
 import { formatMoney, formatDateHeader, getMonthStart, getMonthEnd } from '../utils/helpers';
 import type { Transaction } from '../types';
 import { isRefund, summarizeTransactions } from '../domain/transactionAccounting';
+import type { AppRoute } from '../routing/hashRoute';
 
-export default function HomePage() {
+export default function HomePage({ onNavigate }: { onNavigate: (route: AppRoute) => void }) {
   const {
     currentLedger,
     ledgers,
@@ -22,9 +20,6 @@ export default function HomePage() {
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
-  const [showCategory, setShowCategory] = useState(false);
-  const [showRecurring, setShowRecurring] = useState(false);
-  const [showFund, setShowFund] = useState(false);
   const [showLedgerSwitch, setShowLedgerSwitch] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
 
@@ -137,21 +132,28 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section aria-label="快捷功能" className="grid grid-cols-3 gap-2 px-4 py-3">
-        <button onClick={() => setShowCategory(true)} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]">
+      <section aria-label="快捷功能" className="grid grid-cols-4 gap-2 px-4 py-3">
+        <button onClick={() => onNavigate('/categories')} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]">
           <Shapes size={21} className="text-amber-600" />
           <span className="text-xs font-medium">分类</span>
         </button>
-        <button onClick={() => setShowRecurring(true)} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]">
+        <button onClick={() => onNavigate('/recurring')} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]">
           <Repeat2 size={21} className="text-amber-600" />
           <span className="text-xs font-medium">周期</span>
         </button>
         <button
-          onClick={() => setShowFund(true)}
+          onClick={() => onNavigate('/funds')}
           className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]"
         >
           <CalendarClock size={21} className="text-amber-600" />
           <span className="text-xs font-medium">资金</span>
+        </button>
+        <button
+          onClick={() => onNavigate('/savings')}
+          className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]"
+        >
+          <PiggyBank size={21} className="text-amber-600" />
+          <span className="text-xs font-medium">攒钱</span>
         </button>
       </section>
 
@@ -233,10 +235,6 @@ export default function HomePage() {
           onClose={() => setSelectedTransaction(null)}
         />
       )}
-
-      {showCategory && <CategoryPage onClose={() => setShowCategory(false)} />}
-      {showRecurring && <RecurringPage onClose={() => setShowRecurring(false)} />}
-      {showFund && <FundPage onClose={() => setShowFund(false)} />}
 
       {showLedgerSwitch && (
         <LedgerSwitch

@@ -4,19 +4,25 @@ import HomePage from './pages/HomePage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import BudgetPage from './pages/BudgetPage';
+import CategoryPage from './pages/CategoryPage';
+import RecurringPage from './pages/RecurringPage';
+import FundPage from './pages/FundPage';
+import ReserveCenter from './components/ReserveCenter';
 import TransactionForm from './components/TransactionForm';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
-
-export type TabType = 'home' | 'reports' | 'budget' | 'settings';
+import { getYearMonth } from './utils/helpers';
+import { isPrimaryRoute, type AppRoute } from './routing/hashRoute';
+import { useHashRoute } from './routing/useHashRoute';
 
 function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('home');
-  const [showForm, setShowForm] = useState(false);
+  const { route, navigate } = useHashRoute();
+  const [lastPrimaryRoute, setLastPrimaryRoute] = useState<AppRoute>('/home');
 
   useEffect(() => {
-    // 四个主页面共用 document 滚动容器，切换 Tab 时必须重置位置，避免新页面从半屏开始。
+    // 页面共用 document 滚动容器，路由切换时必须重置位置，避免新页面从半屏开始。
     window.scrollTo({ top: 0, behavior: 'auto' });
-  }, [activeTab]);
+    if (isPrimaryRoute(route)) setLastPrimaryRoute(route);
+  }, [route]);
 
   useEffect(() => {
     // iOS 的 gesture 事件不受普通 touch-action 完整约束，单独阻止双指缩放手势。
@@ -31,28 +37,43 @@ function App() {
     };
   }, []);
 
+  const closeSecondaryPage = () => navigate(lastPrimaryRoute, { replace: true });
+
   const renderContent = () => {
-    switch (activeTab) {
-      case 'home':
-        return <HomePage />;
-      case 'reports':
+    switch (route) {
+      case '/home':
+        return <HomePage onNavigate={navigate} />;
+      case '/reports':
         return <ReportsPage />;
-      case 'budget':
+      case '/budget':
         return <BudgetPage />;
-      case 'settings':
+      case '/settings':
         return <SettingsPage />;
+      case '/categories':
+        return <CategoryPage onClose={closeSecondaryPage} />;
+      case '/recurring':
+        return <RecurringPage onClose={closeSecondaryPage} />;
+      case '/funds':
+        return <FundPage onClose={closeSecondaryPage} />;
+      case '/savings':
+        return (
+          <ReserveCenter
+            standalone
+            showMonthlyTransfer={false}
+            yearMonth={getYearMonth(Date.now())}
+            onClose={closeSecondaryPage}
+          />
+        );
+      case '/add':
+        return <TransactionForm onClose={closeSecondaryPage} />;
       default:
-        return <HomePage />;
+        return <HomePage onNavigate={navigate} />;
     }
   };
 
   return (
     <div className="min-h-[100svh] bg-slate-50 pb-24">
       <main className="min-h-[100svh]">{renderContent()}</main>
-
-      {showForm && (
-        <TransactionForm onClose={() => setShowForm(false)} />
-      )}
 
       <PwaUpdatePrompt />
 
@@ -62,10 +83,10 @@ function App() {
       >
         <div className="relative mx-auto grid max-w-[430px] grid-cols-5 items-end gap-1">
           <button
-            onClick={() => setActiveTab('home')}
-            aria-current={activeTab === 'home' ? 'page' : undefined}
+            onClick={() => navigate('/home')}
+            aria-current={route === '/home' ? 'page' : undefined}
             className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${
-              activeTab === 'home' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
+              route === '/home' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
             }`}
           >
             <List size={21} />
@@ -73,10 +94,10 @@ function App() {
           </button>
 
           <button
-            onClick={() => setActiveTab('reports')}
-            aria-current={activeTab === 'reports' ? 'page' : undefined}
+            onClick={() => navigate('/reports')}
+            aria-current={route === '/reports' ? 'page' : undefined}
             className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${
-              activeTab === 'reports' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
+              route === '/reports' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
             }`}
           >
             <PieChart size={21} />
@@ -84,7 +105,7 @@ function App() {
           </button>
 
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => navigate('/add')}
             aria-label="新增账单"
             className="mx-auto flex h-14 w-14 -translate-y-3 items-center justify-center rounded-full bg-primary text-black shadow-[0_10px_30px_rgba(250,204,21,0.42)] transition-transform active:scale-95"
           >
@@ -92,10 +113,10 @@ function App() {
           </button>
 
           <button
-            onClick={() => setActiveTab('budget')}
-            aria-current={activeTab === 'budget' ? 'page' : undefined}
+            onClick={() => navigate('/budget')}
+            aria-current={route === '/budget' ? 'page' : undefined}
             className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${
-              activeTab === 'budget' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
+              route === '/budget' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
             }`}
           >
             <WalletCards size={21} />
@@ -103,10 +124,10 @@ function App() {
           </button>
 
           <button
-            onClick={() => setActiveTab('settings')}
-            aria-current={activeTab === 'settings' ? 'page' : undefined}
+            onClick={() => navigate('/settings')}
+            aria-current={route === '/settings' ? 'page' : undefined}
             className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${
-              activeTab === 'settings' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
+              route === '/settings' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
             }`}
           >
             <User size={21} />

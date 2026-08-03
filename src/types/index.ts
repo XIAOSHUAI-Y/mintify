@@ -86,7 +86,7 @@ export interface SavingsPlan {
 }
 
 export type ReserveEntrySourceType = 'budget' | 'general' | 'plan';
-export type ReserveEntryTargetType = 'general' | 'plan';
+export type ReserveEntryTargetType = 'general' | 'plan' | 'budget';
 
 /** 通用结余池与攒钱计划共用一套不可变流水，内部划转不会重复增加总结余。 */
 export interface ReserveEntry {
@@ -97,6 +97,10 @@ export interface ReserveEntry {
   sourcePlanId?: string;
   targetType: ReserveEntryTargetType;
   targetPlanId?: string;
+  /** 划回预算时记录接收月份；它补充当月有效预算，但不修改用户设置的原始总预算。 */
+  targetYearMonth?: string;
+  /** 周期结算会释放已结束月份的分类预算；普通转入仍只能使用尚未分配预算。 */
+  kind?: 'period-settlement';
   /** 从预算转入时记录来源月份，确保对应月份的可用预算会同步扣减。 */
   sourceYearMonth?: string;
   note: string;

@@ -15,6 +15,12 @@ export const formatNumber = (amount: number) => {
   }).format(amount);
 };
 
+/** 百分比统一在展示边界四舍五入，计算和进度条仍使用原始精度。 */
+export const formatPercentage = (value: number) => {
+  const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
+  return `${rounded.toFixed(2)}%`;
+};
+
 export const getYearMonth = (timestamp: number) => {
   const date = new Date(timestamp);
   const year = date.getFullYear();

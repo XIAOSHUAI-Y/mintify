@@ -11,6 +11,7 @@ import type {
   Transaction,
 } from '../types';
 import {
+  archiveSavingsPlan,
   allocateLivingExpense,
   bootstrapIfNeeded,
   deleteBudget,
@@ -42,6 +43,7 @@ import {
   saveRecurringRule,
   saveReserveEntry,
   saveSavingsPlan,
+  settlePreviousMonthBudgetReserve,
   saveTransaction,
   setDefaultLedger,
 } from '../db/operations';
@@ -91,6 +93,7 @@ interface AppContextType extends AppState {
   saveLivingExpenseAllocation: (allocation: FundTransaction) => Promise<void>;
   linkExistingLivingExpenseAllocation: (transaction: Transaction) => Promise<void>;
   savePlan: (plan: SavingsPlan) => Promise<void>;
+  archivePlan: (planId: string, transferEntry?: ReserveEntry) => Promise<void>;
   addReserveEntry: (entry: ReserveEntry) => Promise<void>;
 }
 
@@ -124,6 +127,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await ensureMonthlyBudgets(currentLedger.id);
     await ensureRefundCategory(currentLedger.id);
     await ensureFundCategories(currentLedger.id);
+    await settlePreviousMonthBudgetReserve(currentLedger.id);
 
     const [
       categories,
@@ -429,6 +433,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const archivePlan = async (planId: string, transferEntry?: ReserveEntry) => {
+    const archivedPlan = await archiveSavingsPlan({
+      planId,
+      transferEntry,
+      archivedAt: Date.now(),
+    });
+    setState((s) => ({
+      ...s,
+      savingsPlans: updateStateItem(s.savingsPlans, archivedPlan, 'update'),
+      reserveEntries: transferEntry ? [transferEntry, ...s.reserveEntries] : s.reserveEntries,
+    }));
+  };
+
   const addReserveEntry = async (entry: ReserveEntry) => {
     await saveReserveEntry(entry);
     setState((s) => ({ ...s, reserveEntries: [entry, ...s.reserveEntries] }));
@@ -464,6 +481,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         saveLivingExpenseAllocation,
         linkExistingLivingExpenseAllocation,
         savePlan,
+        archivePlan,
         addReserveEntry,
       }}
     >
