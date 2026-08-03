@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import {
   ArrowDownToLine,
+  ArrowDownLeft,
   ArrowLeft,
+  ArrowUpRight,
+  Check,
   ChevronRight,
   Landmark,
   Pencil,
@@ -9,10 +12,12 @@ import {
   Plus,
   Sparkles,
   Target,
+  Trash2,
+  WalletCards,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { calculateMonthlyBudgetAvailability, calculateReserveBalances } from '../domain/reserveLedger';
-import { formatMoney, generateId, getYearMonth } from '../utils/helpers';
+import { calculateMonthlyBudgetAvailability, calculateReserveBalances, getSavingsPlanProgress } from '../domain/reserveLedger';
+import { formatMoney, formatPercentage, generateId, getYearMonth } from '../utils/helpers';
 import type { ReserveEntry, SavingsPlan } from '../types';
 import { Icon } from './Icon';
 
@@ -36,11 +41,13 @@ export default function ReserveCenter({
     savingsPlans,
     reserveEntries,
     savePlan,
+    archivePlan,
     addReserveEntry,
   } = useApp();
   const [managerOpen, setManagerOpen] = useState(standalone);
-  const [dialog, setDialog] = useState<'month-all' | 'month-custom' | 'plan' | 'transfer' | null>(null);
+  const [dialog, setDialog] = useState<'month-all' | 'month-custom' | 'plan' | 'transfer' | 'withdraw' | 'delete-plan' | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [deleteDestinationKey, setDeleteDestinationKey] = useState('general');
   const [amount, setAmount] = useState('');
   const [planName, setPlanName] = useState('');
   const [targetAmount, setTargetAmount] = useState('');
@@ -64,7 +71,7 @@ export default function ReserveCenter({
           ledgerId: currentLedger.id,
           yearMonth,
         })
-      : { budgetAmount: 0, spentAmount: 0, reservedAmount: 0, availableAmount: 0 },
+      : { baseBudgetAmount: 0, supplementAmount: 0, budgetAmount: 0, spentAmount: 0, reservedAmount: 0, availableAmount: 0 },
     [budgets, currentLedger, reserveEntries, transactions, yearMonth],
   );
 
@@ -76,6 +83,7 @@ export default function ReserveCenter({
     setPlanName('');
     setTargetAmount('');
     setSelectedPlanId('');
+    setDeleteDestinationKey('general');
     setPlanColor(PLAN_COLORS[0]);
     setError('');
   };
@@ -114,6 +122,13 @@ export default function ReserveCenter({
     setAmount('');
     setError('');
     setDialog('transfer');
+  };
+
+  const openBudgetWithdrawal = (planId: string) => {
+    setSelectedPlanId(planId);
+    setAmount('');
+    setError('');
+    setDialog('withdraw');
   };
 
   const saveMonthTransfer = async () => {
@@ -181,9 +196,87 @@ export default function ReserveCenter({
     }
   };
 
+  const withdrawPlanToBudget = async () => {
+    const value = Number(amount);
+    const planBalance = balances.plans.get(selectedPlanId) ?? 0;
+    if (!Number.isFinite(value) || value <= 0) return setError('请输入大于 0 的金额');
+    if (value > planBalance) return setError(`最多可划出 ${formatMoney(planBalance)}`);
+    try {
+      const now = Date.now();
+      await addReserveEntry({
+        id: generateId(),
+        ledgerId: currentLedger.id,
+        amount: value,
+        sourceType: 'plan',
+        sourcePlanId: selectedPlanId,
+        targetType: 'budget',
+        targetYearMonth: currentMonth,
+        note: `划入 ${Number(currentMonth.slice(5))} 月预算`,
+        occurredAt: now,
+        createdAt: now,
+      });
+      resetDialog();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '划出失败，请重试');
+    }
+  };
+
+  const deleteSelectedPlan = async () => {
+    const plan = activePlans.find((item) => item.id === selectedPlanId);
+    if (!plan) return setError('攒钱计划不存在');
+    const planBalance = balances.plans.get(plan.id) ?? 0;
+    const now = Date.now();
+    let transferEntry: ReserveEntry | undefined;
+
+    if (planBalance > 0) {
+      const common = {
+        id: generateId(),
+        ledgerId: currentLedger.id,
+        amount: planBalance,
+        sourceType: 'plan' as const,
+        sourcePlanId: plan.id,
+        occurredAt: now,
+        createdAt: now,
+      };
+      if (deleteDestinationKey === 'general') {
+        transferEntry = { ...common, targetType: 'general', note: '删除计划时转入通用结余池' };
+      } else if (deleteDestinationKey === 'budget') {
+        transferEntry = {
+          ...common,
+          targetType: 'budget',
+          targetYearMonth: currentMonth,
+          note: `删除计划时划入 ${Number(currentMonth.slice(5))} 月预算`,
+        };
+      } else {
+        const targetPlanId = deleteDestinationKey.slice('plan:'.length);
+        const targetPlan = activePlans.find((item) => item.id === targetPlanId);
+        if (!targetPlan) return setError('目标攒钱计划不存在');
+        transferEntry = {
+          ...common,
+          targetType: 'plan',
+          targetPlanId,
+          note: `删除计划时转入${targetPlan.name}`,
+        };
+      }
+    }
+
+    try {
+      await archivePlan(plan.id, transferEntry);
+      resetDialog();
+    } catch (archiveError) {
+      setError(archiveError instanceof Error ? archiveError.message : '删除失败，请重试');
+    }
+  };
+
   const currentMonth = getYearMonth(Date.now());
+  const hasCurrentOverallBudget = budgets.some((budget) =>
+    budget.ledgerId === currentLedger.id
+    && budget.period === 'monthly'
+    && budget.includeOverall
+    && budget.yearMonth === currentMonth);
   const canTransferMonth = yearMonth <= currentMonth && availability.availableAmount > 0;
   const editingPlan = activePlans.find((plan) => plan.id === selectedPlanId);
+  const selectedPlanBalance = balances.plans.get(selectedPlanId) ?? 0;
 
   return (
     <>
@@ -244,14 +337,14 @@ export default function ReserveCenter({
             <button onClick={closeManager} className="icon-button" aria-label="返回">
               <ArrowLeft size={21} />
             </button>
-            <div className="font-semibold">我的结余</div>
+            <div className="font-semibold">攒钱</div>
             <button onClick={openCreatePlan} className="icon-button text-amber-700" aria-label="新建攒钱计划">
               <Plus size={21} />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto px-4 pb-10 pt-4">
             <section className="rounded-[1.5rem] bg-gradient-to-br from-amber-300 via-amber-200 to-yellow-100 p-5 text-amber-950 shadow-[0_18px_40px_rgba(245,158,11,0.20)]">
-              <div className="text-xs font-semibold text-amber-900/60">总结余</div>
+              <div className="text-xs font-semibold text-amber-900/60">当前已攒</div>
               <div className="mt-1 text-3xl font-bold tracking-tight">{formatMoney(balances.total)}</div>
               <div className="mt-5 flex items-center justify-between rounded-xl bg-white/55 px-3 py-3">
                 <span className="flex items-center gap-2 text-sm font-medium"><Landmark size={17} /> 通用结余池</span>
@@ -278,45 +371,96 @@ export default function ReserveCenter({
               <div className="space-y-3">
                 {activePlans.map((plan) => {
                   const balance = balances.plans.get(plan.id) ?? 0;
-                  const progress = plan.targetAmount ? Math.min(balance / plan.targetAmount * 100, 100) : 0;
+                  const progress = plan.targetAmount ? getSavingsPlanProgress(balance, plan.targetAmount) : null;
                   return (
-                    <div key={plan.id} className="surface-card p-4">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm"
-                          style={{ backgroundColor: plan.color }}
-                        >
-                          <Icon name={plan.icon} size={21} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold text-slate-800">{plan.name}</span>
-                          <span className="mt-0.5 block text-xs text-slate-400">
-                            {plan.targetAmount ? `目标 ${formatMoney(plan.targetAmount)}` : '没有金额压力，慢慢攒'}
+                    <div
+                      key={plan.id}
+                      className="relative overflow-hidden rounded-[1.5rem] border p-4 shadow-[0_14px_34px_rgba(15,23,42,0.07)]"
+                      style={{
+                        borderColor: `${plan.color}2E`,
+                        background: `linear-gradient(145deg, ${plan.color}18 0%, #FFFFFF 54%, #FFFFFF 100%)`,
+                      }}
+                    >
+                      <div
+                        className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full blur-2xl"
+                        style={{ backgroundColor: `${plan.color}20` }}
+                      />
+                      <div className="relative">
+                        <div className="flex items-start gap-3">
+                          <span
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-[0_8px_20px_rgba(15,23,42,0.12)]"
+                            style={{ backgroundColor: plan.color }}
+                          >
+                            <Icon name={plan.icon} size={23} />
                           </span>
-                        </span>
-                        <span className="flex shrink-0 items-center gap-2">
-                          <span className="text-right text-sm font-semibold text-slate-800">{formatMoney(balance)}</span>
+                          <span className="min-w-0 flex-1 pt-0.5">
+                            <span className="block truncate text-base font-bold text-slate-900">{plan.name}</span>
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-white/75 px-2 py-1 text-[11px] font-semibold shadow-sm" style={{ color: plan.color }}>
+                              <Target size={12} />
+                              {progress?.completed ? '目标已达成' : '目标进行中'}
+                            </span>
+                          </span>
                           <button
                             onClick={() => openPlanEditor(plan)}
-                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-700 active:bg-amber-100"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/75 text-slate-500 shadow-sm active:bg-white"
                             aria-label={`编辑${plan.name}`}
                           >
                             <Pencil size={15} />
                           </button>
-                        </span>
-                      </div>
-                      {plan.targetAmount && (
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
-                          <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: plan.color }} />
                         </div>
-                      )}
-                      <button
-                        onClick={() => openPlanTransfer(plan.id)}
-                        disabled={balances.general <= 0}
-                        className="mt-3 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-slate-50 text-xs font-semibold text-slate-600 disabled:text-slate-300"
-                      >
-                        从通用结余池转入 <ChevronRight size={15} />
-                      </button>
+
+                        <div className="mt-5">
+                          <div className="text-[11px] font-medium text-slate-400">已经攒下</div>
+                          <div className="mt-0.5 text-[1.75rem] font-bold tracking-tight text-slate-950">{formatMoney(balance)}</div>
+                        </div>
+
+                        {plan.targetAmount && progress ? (
+                          <div className="mt-4">
+                            <div className="flex items-center justify-between gap-3 text-xs">
+                              <span className="font-semibold" style={{ color: plan.color }}>
+                                已完成 {formatPercentage(progress.percentage)}
+                              </span>
+                              <span className="text-slate-500">
+                                {progress.completed ? '目标达成啦' : `还差 ${formatMoney(progress.remainingAmount)}`}
+                              </span>
+                            </div>
+                            <div className="mt-2.5 h-2.5 overflow-hidden rounded-full" style={{ backgroundColor: `${plan.color}18` }}>
+                              <div
+                                className="h-full rounded-full shadow-[0_0_12px_rgba(59,130,246,0.24)]"
+                                style={{ width: `${progress.percentage}%`, backgroundColor: plan.color }}
+                              />
+                            </div>
+                            <div className="mt-2 text-right text-[11px] text-slate-400">
+                              目标 {formatMoney(plan.targetAmount)}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-4 rounded-xl bg-white/70 px-3 py-2.5 text-xs text-slate-500">
+                            自由积累，不设金额上限
+                          </div>
+                        )}
+
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => openPlanTransfer(plan.id)}
+                            disabled={balances.general <= 0}
+                            className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-semibold text-white shadow-sm active:scale-[0.995] disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                            style={balances.general > 0 ? { backgroundColor: plan.color } : undefined}
+                          >
+                            <ArrowUpRight size={16} />
+                            {balances.general > 0 ? '继续攒一笔' : '通用池暂无余额'}
+                          </button>
+                          <button
+                            onClick={() => openBudgetWithdrawal(plan.id)}
+                            disabled={balance <= 0 || !hasCurrentOverallBudget}
+                            className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border bg-white/80 px-2 text-xs font-semibold shadow-sm active:scale-[0.995] disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-300"
+                            style={balance > 0 && hasCurrentOverallBudget ? { borderColor: `${plan.color}45`, color: plan.color } : undefined}
+                          >
+                            <ArrowDownLeft size={16} />
+                            {!hasCurrentOverallBudget ? '先设置本月预算' : '划到本月预算'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -377,6 +521,23 @@ export default function ReserveCenter({
         />
       )}
 
+      {dialog === 'withdraw' && (
+        <AmountDialog
+          title={`划到 ${Number(currentMonth.slice(5))} 月预算`}
+          amountLabel="划出金额"
+          confirmLabel="确认划到预算"
+          hint={`从${activePlans.find((plan) => plan.id === selectedPlanId)?.name ?? '攒钱计划'}划出，可用 ${formatMoney(selectedPlanBalance)}。这是内部划转，不计入收入或支出。`}
+          amount={amount}
+          onAmountChange={(value) => {
+            setAmount(value);
+            setError('');
+          }}
+          error={error}
+          onCancel={resetDialog}
+          onConfirm={() => void withdrawPlanToBudget()}
+        />
+      )}
+
       {dialog === 'plan' && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4">
           <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
@@ -421,8 +582,38 @@ export default function ReserveCenter({
                 {editingPlan ? '保存' : '创建'}
               </button>
             </div>
+            {editingPlan && (
+              <button
+                onClick={() => {
+                  setDeleteDestinationKey('general');
+                  setError('');
+                  setDialog('delete-plan');
+                }}
+                className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium text-rose-500 active:bg-rose-50"
+              >
+                <Trash2 size={16} /> 删除计划
+              </button>
+            )}
           </div>
         </div>
+      )}
+
+      {dialog === 'delete-plan' && editingPlan && (
+        <DeletePlanDialog
+          plan={editingPlan}
+          balance={selectedPlanBalance}
+          currentMonth={currentMonth}
+          hasCurrentOverallBudget={hasCurrentOverallBudget}
+          otherPlans={activePlans.filter((plan) => plan.id !== editingPlan.id)}
+          destinationKey={deleteDestinationKey}
+          error={error}
+          onDestinationChange={(key) => {
+            setDeleteDestinationKey(key);
+            setError('');
+          }}
+          onCancel={resetDialog}
+          onConfirm={() => void deleteSelectedPlan()}
+        />
       )}
     </>
   );
@@ -464,6 +655,8 @@ function ConfirmAllTransferDialog({
 
 function AmountDialog({
   title,
+  amountLabel = '转入金额',
+  confirmLabel = '确认转入',
   hint,
   amount,
   error,
@@ -472,6 +665,8 @@ function AmountDialog({
   onConfirm,
 }: {
   title: string;
+  amountLabel?: string;
+  confirmLabel?: string;
   hint: string;
   amount: string;
   error: string;
@@ -484,7 +679,7 @@ function AmountDialog({
       <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
         <div className="text-center font-semibold text-slate-900">{title}</div>
         <div className="mt-4 rounded-2xl bg-amber-50 p-4">
-          <div className="text-xs font-medium text-amber-800/70">转入金额</div>
+          <div className="text-xs font-medium text-amber-800/70">{amountLabel}</div>
           <div className="mt-1 flex items-center gap-2">
             <span className="text-2xl font-bold text-amber-900">¥</span>
             <input
@@ -501,7 +696,102 @@ function AmountDialog({
         {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
         <div className="mt-5 grid grid-cols-2 gap-3">
           <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600">取消</button>
-          <button onClick={onConfirm} className="min-h-12 rounded-xl bg-amber-400 font-semibold text-amber-950">确认转入</button>
+          <button onClick={onConfirm} className="min-h-12 rounded-xl bg-amber-400 font-semibold text-amber-950">{confirmLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeletePlanDialog({
+  plan,
+  balance,
+  currentMonth,
+  hasCurrentOverallBudget,
+  otherPlans,
+  destinationKey,
+  error,
+  onDestinationChange,
+  onCancel,
+  onConfirm,
+}: {
+  plan: SavingsPlan;
+  balance: number;
+  currentMonth: string;
+  hasCurrentOverallBudget: boolean;
+  otherPlans: SavingsPlan[];
+  destinationKey: string;
+  error: string;
+  onDestinationChange: (key: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const destinations = [
+    { key: 'general', name: '通用结余池', description: '保留在攒钱体系中', icon: <Landmark size={17} /> },
+    ...(hasCurrentOverallBudget ? [{
+      key: 'budget',
+      name: `${Number(currentMonth.slice(5))} 月预算`,
+      description: '增加本月有效预算',
+      icon: <WalletCards size={17} />,
+    }] : []),
+    ...otherPlans.map((item) => ({
+      key: `plan:${item.id}`,
+      name: item.name,
+      description: '转入其他攒钱计划',
+      icon: <Icon name={item.icon} size={17} />,
+    })),
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4">
+      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
+        <div className="text-center font-semibold text-slate-900">删除「{plan.name}」？</div>
+        {balance > 0 ? (
+          <>
+            <div className="mt-2 text-center text-xs leading-5 text-slate-400">
+              计划中还有 {formatMoney(balance)}，删除前需要完整转移。
+            </div>
+            <div className="mt-4 max-h-56 space-y-2 overflow-y-auto">
+              {destinations.map((destination) => {
+                const selected = destination.key === destinationKey;
+                return (
+                  <button
+                    key={destination.key}
+                    onClick={() => onDestinationChange(destination.key)}
+                    className={`flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 text-left ${
+                      selected ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
+                    }`}
+                  >
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                      selected ? 'bg-amber-400 text-amber-950' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {destination.icon}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-slate-800">{destination.name}</span>
+                      <span className="mt-0.5 block text-[11px] text-slate-400">{destination.description}</span>
+                    </span>
+                    <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                      selected ? 'bg-amber-400 text-amber-950' : 'border border-slate-200 text-transparent'
+                    }`}>
+                      <Check size={14} strokeWidth={3} />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="mt-4 rounded-xl bg-slate-50 px-3 py-3 text-center text-sm text-slate-500">
+            计划余额为零，可以直接删除。历史流水仍会保留计划名称。
+          </div>
+        )}
+        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600">取消</button>
+          <button onClick={onConfirm} className="min-h-12 rounded-xl bg-rose-500 font-semibold text-white">
+            {balance > 0 ? '转移并删除' : '确认删除'}
+          </button>
         </div>
       </div>
     </div>
@@ -511,7 +801,9 @@ function AmountDialog({
 function ReserveHistoryItem({ entry, plans }: { entry: ReserveEntry; plans: SavingsPlan[] }) {
   const target = entry.targetType === 'general'
     ? '通用结余池'
-    : plans.find((plan) => plan.id === entry.targetPlanId)?.name ?? '已归档计划';
+    : entry.targetType === 'budget'
+      ? `${Number(entry.targetYearMonth?.slice(5))} 月预算`
+      : plans.find((plan) => plan.id === entry.targetPlanId)?.name ?? '已归档计划';
   const source = entry.sourceType === 'budget'
     ? `${Number(entry.sourceYearMonth?.slice(5))} 月预算`
     : entry.sourceType === 'general'
@@ -520,7 +812,11 @@ function ReserveHistoryItem({ entry, plans }: { entry: ReserveEntry; plans: Savi
   return (
     <div className="flex items-center gap-3 py-3">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-        {entry.targetType === 'general' ? <Landmark size={17} /> : <PiggyBank size={17} />}
+        {entry.targetType === 'general'
+          ? <Landmark size={17} />
+          : entry.targetType === 'budget'
+            ? <WalletCards size={17} />
+            : <PiggyBank size={17} />}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium text-slate-700">{source} → {target}</span>

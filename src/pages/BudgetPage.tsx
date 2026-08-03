@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Popover } from 'antd-mobile';
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, WalletCards } from 'lucide-react';
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Landmark, PiggyBank, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import { useConfirmDeletion } from '../context/ConfirmDialogContext';
@@ -13,9 +13,10 @@ import {
   type BudgetAllocationSummary,
   type MonthlyBudgetOverview,
 } from '../domain/budgetAnalytics';
-import { calculateMonthlyReserveDestinations } from '../domain/reserveLedger';
+import { calculateMonthlyReserveDestinations, getSavingsAllocationProgress } from '../domain/reserveLedger';
+import { buildBudgetReserveTransfer, type BudgetReserveDestination } from '../domain/budgetReserveTransfer';
 import { getNetSpendingByCategory } from '../domain/transactionAccounting';
-import type { Budget, Transaction } from '../types';
+import type { Budget, SavingsPlan, Transaction } from '../types';
 
 export default function BudgetPage() {
   const {
@@ -26,11 +27,13 @@ export default function BudgetPage() {
     savingsPlans,
     reserveEntries,
     addBudget,
+    addReserveEntry,
     updateBudget,
     removeBudget,
   } = useApp();
   const [creatingBudgetType, setCreatingBudgetType] = useState<'overall' | 'category' | null>(null);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
   const [selectedYearMonth, setSelectedYearMonth] = useState(() => getYearMonth(Date.now()));
   const [preferenceLoaded, setPreferenceLoaded] = useState(false);
@@ -190,14 +193,37 @@ export default function BudgetPage() {
           <div className="mb-6">
             <div className="mb-2 text-sm font-medium">总预算</div>
             {overallBudget ? (
-              <BudgetCard
-                budget={overallBudget}
-                spent={calculateSpent(overallBudget)}
-                reserved={selectedMonthReserved}
-                categoryAllocated={allocationSummary.allocatedAmount}
-                allocationBalance={allocationSummary.balanceAmount}
-                onClick={() => setEditingBudget(overallBudget)}
-              />
+              <>
+                <BudgetCard
+                  budget={overallBudget}
+                  spent={calculateSpent(overallBudget)}
+                  reserved={selectedMonthReserved}
+                  budgetSupplement={allocationSummary.supplementAmount}
+                  categoryAllocated={allocationSummary.allocatedAmount}
+                  allocationBalance={allocationSummary.balanceAmount}
+                  onClick={() => setEditingBudget(overallBudget)}
+                />
+                <button
+                  onClick={() => setTransferOpen(true)}
+                  disabled={selectedYearMonth > currentMonth || allocationSummary.balanceAmount <= 0}
+                  className="group mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 to-white px-4 text-left shadow-[0_8px_24px_rgba(14,165,233,0.08)] active:scale-[0.995] disabled:border-slate-100 disabled:bg-none disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-white shadow-sm group-disabled:bg-slate-300">
+                    <PiggyBank size={20} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold text-slate-800 group-disabled:text-slate-500">转入攒钱计划</span>
+                    <span className="mt-0.5 block text-xs text-slate-400">
+                      {selectedYearMonth > currentMonth
+                        ? '未来月份暂不能转入'
+                        : allocationSummary.balanceAmount > 0
+                          ? `本月最多可转 ${formatMoney(allocationSummary.balanceAmount)}`
+                          : '本月暂无可分配预算'}
+                    </span>
+                  </span>
+                  <ChevronRight size={18} className="shrink-0 text-sky-500 group-disabled:text-slate-300" />
+                </button>
+              </>
             ) : (
               <button
                 onClick={() => setCreatingBudgetType('overall')}
@@ -237,6 +263,7 @@ export default function BudgetPage() {
                         icon={destination.targetType === 'general' ? 'piggy-bank' : plan?.icon ?? 'piggy-bank'}
                         color={destination.targetType === 'general' ? '#3B82F6' : plan?.color ?? '#64748B'}
                         amount={destination.amount}
+                        targetType={destination.targetType}
                         totalBudget={overallBudget?.amount
                           ?? categoryBudgets.reduce((sum, budget) => sum + budget.amount, 0)}
                       />
@@ -297,6 +324,233 @@ export default function BudgetPage() {
           }
         />
       )}
+
+      {transferOpen && currentLedger && (
+        <BudgetSavingsTransferDialog
+          yearMonth={selectedYearMonth}
+          maxAmount={Math.max(allocationSummary.balanceAmount, 0)}
+          plans={savingsPlans.filter((plan) => !plan.archivedAt)}
+          onCancel={() => setTransferOpen(false)}
+          onSave={async ({ amount, destination }) => {
+            const now = Date.now();
+            await addReserveEntry(buildBudgetReserveTransfer({
+              id: generateId(),
+              ledgerId: currentLedger.id,
+              yearMonth: selectedYearMonth,
+              amount,
+              destination,
+              now,
+            }));
+            setTransferOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function BudgetSavingsTransferDialog({
+  yearMonth,
+  maxAmount,
+  plans,
+  onCancel,
+  onSave,
+}: {
+  yearMonth: string;
+  maxAmount: number;
+  plans: SavingsPlan[];
+  onCancel: () => void;
+  onSave: (value: { amount: number; destination: BudgetReserveDestination }) => Promise<void>;
+}) {
+  const [amount, setAmount] = useState('');
+  const [destinationKey, setDestinationKey] = useState(plans[0]?.id ?? 'general');
+  const [destinationOpen, setDestinationOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const destinations = useMemo(() => [
+    { key: 'general', type: 'general' as const, name: '通用结余池', icon: 'piggy-bank', color: '#3B82F6' },
+    ...plans.map((plan) => ({
+      key: plan.id,
+      type: 'plan' as const,
+      name: plan.name,
+      icon: plan.icon,
+      color: plan.color,
+    })),
+  ], [plans]);
+  const selectedDestination = destinations.find((destination) => destination.key === destinationKey)
+    ?? destinations[0];
+  const numericAmount = Number(amount);
+  const amountValid = Number.isFinite(numericAmount) && numericAmount > 0 && numericAmount <= maxAmount;
+  const projectedBalance = Number.isFinite(numericAmount) && numericAmount > 0
+    ? maxAmount - numericAmount
+    : maxAmount;
+
+  const handleSave = async () => {
+    if (!amountValid || saving) {
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) setError('请输入大于 0 的金额');
+      else if (numericAmount > maxAmount) setError(`最多可转 ${formatMoney(maxAmount)}`);
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({
+        amount: numericAmount,
+        destination: selectedDestination.type === 'general'
+          ? { type: 'general', name: selectedDestination.name }
+          : { type: 'plan', planId: selectedDestination.key, name: selectedDestination.name },
+      });
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '转入失败，请重试');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 p-4">
+      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
+        <div className="text-center font-semibold text-slate-900">从预算转入攒钱</div>
+        <div className="mt-1 text-center text-xs text-slate-400">
+          {Number(yearMonth.slice(5))} 月可分配预算 {formatMoney(maxAmount)}
+        </div>
+
+        <label className="mt-5 block">
+          <span className="mb-2 block text-xs font-medium text-slate-500">转入金额</span>
+          <div className="flex min-h-14 items-center rounded-xl border border-slate-200 px-3 focus-within:border-sky-400 focus-within:ring-4 focus-within:ring-sky-100">
+            <span className="mr-1 text-lg font-semibold text-slate-500">¥</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(event) => {
+                setAmount(event.target.value);
+                setError('');
+              }}
+              placeholder="0.00"
+              className="min-w-0 flex-1 bg-transparent text-xl font-semibold text-slate-900 outline-none placeholder:text-slate-300"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setAmount(String(maxAmount));
+                setError('');
+              }}
+              className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-600"
+            >
+              全部
+            </button>
+          </div>
+        </label>
+
+        <div className="mt-4">
+          {destinationOpen && (
+            <button
+              type="button"
+              aria-label="收起转入位置选择器"
+              className="fixed inset-0 z-[70] bg-slate-950/20 backdrop-blur-[1px]"
+              onClick={() => setDestinationOpen(false)}
+            />
+          )}
+          <Popover
+            className="mintify-budget-category-select"
+            visible={destinationOpen}
+            onVisibleChange={setDestinationOpen}
+            trigger="click"
+            placement="bottom-start"
+            content={(
+              <div className="mintify-budget-category-options">
+                {destinations.map((destination) => {
+                  const selected = destination.key === destinationKey;
+                  return (
+                    <button
+                      type="button"
+                      key={destination.key}
+                      aria-selected={selected}
+                      className={`mintify-budget-category-option ${selected ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        setDestinationKey(destination.key);
+                        setDestinationOpen(false);
+                      }}
+                    >
+                      <span
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+                        style={{ backgroundColor: destination.color }}
+                      >
+                        {destination.type === 'general'
+                          ? <Landmark size={17} />
+                          : <Icon name={destination.icon} size={17} />}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-left font-medium text-slate-700">
+                        {destination.name}
+                      </span>
+                      <span className={`flex h-6 w-6 items-center justify-center rounded-full ${
+                        selected ? 'bg-sky-500 text-white' : 'text-transparent'
+                      }`}>
+                        <Check size={15} strokeWidth={3} />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          >
+            <button
+              type="button"
+              aria-label="选择转入位置"
+              aria-expanded={destinationOpen}
+              className={`flex min-h-14 w-full items-center gap-3 rounded-xl border bg-white px-3 text-left transition-all ${
+                destinationOpen
+                  ? 'border-sky-400 ring-4 ring-sky-100'
+                  : 'border-slate-200 active:bg-slate-50'
+              }`}
+            >
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+                style={{ backgroundColor: selectedDestination.color }}
+              >
+                {selectedDestination.type === 'general'
+                  ? <Landmark size={17} />
+                  : <Icon name={selectedDestination.icon} size={17} />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] font-medium text-slate-400">转入位置</span>
+                <span className="mt-0.5 block truncate text-sm font-semibold text-slate-800">
+                  {selectedDestination.name}
+                </span>
+              </span>
+              <ChevronDown
+                size={19}
+                className={`shrink-0 text-slate-400 transition-transform ${destinationOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+          </Popover>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/70 px-3 py-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sky-900/65">转入后可分配</span>
+            <span className={`font-semibold ${projectedBalance >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
+              {formatMoney(projectedBalance)}
+            </span>
+          </div>
+        </div>
+
+        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
+
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600">取消</button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={!amountValid || saving}
+            className="min-h-12 rounded-xl bg-sky-500 font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
+          >
+            {saving ? '转入中…' : '确认转入'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -446,6 +700,7 @@ function YearMonthCard({
       <div className="mt-2 text-sm font-semibold text-slate-700">{formatMoney(month.budgetAmount)}</div>
       <div className="mt-1 text-[11px] text-slate-400">
         支出 {formatMoney(month.spentAmount)}{month.savedAmount > 0 ? ` · 已存 ${formatMoney(month.savedAmount)}` : ''}
+        {month.supplementAmount > 0 ? ` · 划入 ${formatMoney(month.supplementAmount)}` : ''}
       </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
         <div
@@ -467,6 +722,8 @@ function shiftYearMonth(yearMonth: string, offset: number): string {
 
 const EMPTY_ALLOCATION_SUMMARY: BudgetAllocationSummary = {
   overallBudgetAmount: 0,
+  supplementAmount: 0,
+  effectiveBudgetAmount: 0,
   allocatedAmount: 0,
   categoryOverspendAmount: 0,
   unbudgetedSpendingAmount: 0,
@@ -514,6 +771,9 @@ function BudgetBalanceCard({
       {hasOverallBudget && summary.reservedAmount > 0 && (
         <div className="mt-3 text-xs text-amber-700">本月已转入结余 {formatMoney(summary.reservedAmount)}</div>
       )}
+      {hasOverallBudget && summary.supplementAmount > 0 && (
+        <div className="mt-2 text-xs text-emerald-700">本月从攒钱划入 +{formatMoney(summary.supplementAmount)}</div>
+      )}
     </div>
   );
 }
@@ -524,16 +784,18 @@ function SavingsAllocationCard({
   icon,
   color,
   amount,
+  targetType,
   totalBudget,
 }: {
   name: string;
   icon: string;
   color: string;
   amount: number;
+  targetType: 'general' | 'plan';
   totalBudget: number;
 }) {
-  const share = totalBudget > 0 ? amount / totalBudget * 100 : 0;
-  const progress = Math.min(share, 100);
+  const share = getSavingsAllocationProgress(targetType, amount, totalBudget);
+  const progress = share === null ? null : Math.min(share, 100);
 
   return (
     <div className="surface-card p-4">
@@ -548,14 +810,18 @@ function SavingsAllocationCard({
           <span className="truncate font-medium text-slate-800">{name}</span>
           <span className="truncate text-sm font-semibold text-slate-500">{formatMoney(amount)}</span>
         </div>
-        <span className="shrink-0 text-sm font-semibold" style={{ color }}>{formatPercentage(share)}</span>
+        {share !== null && (
+          <span className="shrink-0 text-sm font-semibold" style={{ color }}>{formatPercentage(share)}</span>
+        )}
       </div>
-      <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className="h-full rounded-full"
-          style={{ width: `${progress}%`, backgroundColor: color }}
-        />
-      </div>
+      {progress !== null && (
+        <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${progress}%`, backgroundColor: color }}
+          />
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3 text-sm">
         <span className="text-slate-500">本月从预算转入 {formatMoney(amount)}</span>
         <span style={{ color }}>不计入消费</span>
@@ -568,6 +834,7 @@ function BudgetCard({
   budget,
   spent,
   reserved = 0,
+  budgetSupplement = 0,
   categoryAllocated = 0,
   allocationBalance,
   category,
@@ -576,20 +843,22 @@ function BudgetCard({
   budget: Budget;
   spent: number;
   reserved?: number;
+  budgetSupplement?: number;
   categoryAllocated?: number;
   allocationBalance?: number;
   category?: { name: string; icon: string; color: string };
   onClick: () => void;
 }) {
+  const effectiveBudgetAmount = budget.amount + budgetSupplement;
   const occupied = spent + reserved;
-  const progress = budget.amount > 0 ? Math.min((occupied / budget.amount) * 100, 100) : 0;
-  const remaining = budget.amount - occupied;
+  const progress = effectiveBudgetAmount > 0 ? Math.min((occupied / effectiveBudgetAmount) * 100, 100) : 0;
+  const remaining = effectiveBudgetAmount - occupied;
 
   if (!category) {
     const availableToAllocate = allocationBalance ?? remaining;
-    const plannedAmount = budget.amount - availableToAllocate;
-    const plannedProgress = budget.amount > 0
-      ? Math.min(Math.max(plannedAmount / budget.amount * 100, 0), 100)
+    const plannedAmount = effectiveBudgetAmount - availableToAllocate;
+    const plannedProgress = effectiveBudgetAmount > 0
+      ? Math.min(Math.max(plannedAmount / effectiveBudgetAmount * 100, 0), 100)
       : 0;
     return (
       <button
@@ -602,7 +871,7 @@ function BudgetCard({
             <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800/70">
               <WalletCards size={15} /> {Number(budget.yearMonth.slice(5))} 月总预算
             </div>
-            <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">{formatMoney(budget.amount)}</div>
+            <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">{formatMoney(effectiveBudgetAmount)}</div>
           </div>
           <span className={`rounded-full bg-white/75 px-2.5 py-1 text-xs font-semibold shadow-sm ${
             plannedProgress >= 100 ? 'text-rose-600' : 'text-amber-800'
@@ -623,6 +892,12 @@ function BudgetCard({
             <span className="text-slate-500">分类预算</span>
             <span className="font-semibold text-rose-500">{formatMoney(categoryAllocated)}</span>
           </div>
+          {budgetSupplement > 0 && (
+            <div className="flex items-center justify-between py-2.5 text-xs">
+              <span className="text-slate-500">攒钱划入</span>
+              <span className="font-semibold text-emerald-600">+{formatMoney(budgetSupplement)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between py-2.5 text-xs">
             <span className="text-slate-500">攒钱计划</span>
             <span className="font-semibold text-sky-600">{formatMoney(reserved)}</span>

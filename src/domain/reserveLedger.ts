@@ -9,6 +9,8 @@ export interface ReserveBalances {
 }
 
 export interface MonthlyBudgetAvailability {
+  baseBudgetAmount: number;
+  supplementAmount: number;
   budgetAmount: number;
   spentAmount: number;
   reservedAmount: number;
@@ -19,6 +21,37 @@ export interface MonthlyReserveDestination {
   targetType: 'general' | 'plan';
   targetPlanId?: string;
   amount: number;
+}
+
+/**
+ * 通用结余池没有目标金额，因此不展示容易被误解为“完成度”的进度。
+ * 具体攒钱计划在预算页仍展示其占本月总预算的比例。
+ */
+export function getSavingsAllocationProgress(
+  targetType: MonthlyReserveDestination['targetType'],
+  amount: number,
+  totalBudget: number,
+): number | null {
+  if (targetType === 'general') return null;
+  return totalBudget > 0 ? amount / totalBudget * 100 : 0;
+}
+
+export interface SavingsPlanProgress {
+  percentage: number;
+  remainingAmount: number;
+  completed: boolean;
+}
+
+/** 攒钱计划的核心反馈统一由目标金额计算，避免卡片上的进度和剩余金额口径不一致。 */
+export function getSavingsPlanProgress(balance: number, targetAmount: number): SavingsPlanProgress {
+  const safeTarget = Math.max(targetAmount, 0);
+  const percentage = safeTarget > 0 ? Math.min(balance / safeTarget * 100, 100) : 0;
+  const remainingAmount = Math.max(safeTarget - balance, 0);
+  return {
+    percentage,
+    remainingAmount,
+    completed: safeTarget > 0 && remainingAmount === 0,
+  };
 }
 
 interface ReserveOriginLot {
@@ -82,10 +115,10 @@ export function calculateMonthlyReserveDestinations(
 
   for (const entry of sortedEntries) {
     const destination = targetKey(entry);
-    if (!destination || entry.amount <= 0) continue;
+    if (entry.amount <= 0) continue;
 
     if (entry.sourceType === 'budget') {
-      if (entry.sourceYearMonth) {
+      if (destination && entry.sourceYearMonth) {
         appendLot(destination, { yearMonth: entry.sourceYearMonth, amount: entry.amount });
       }
       continue;
@@ -98,7 +131,8 @@ export function calculateMonthlyReserveDestinations(
     while (remaining > 0 && sourceLots.length > 0) {
       const lot = sourceLots[0];
       const movedAmount = Math.min(lot.amount, remaining);
-      appendLot(destination, { yearMonth: lot.yearMonth, amount: movedAmount });
+      // 划回预算时只消费来源批次，不再放入结余桶；因此历史月份的计划占用会同步减少。
+      if (destination) appendLot(destination, { yearMonth: lot.yearMonth, amount: movedAmount });
       lot.amount -= movedAmount;
       remaining -= movedAmount;
       if (lot.amount <= 0) sourceLots.shift();
@@ -141,7 +175,7 @@ export function calculateMonthlyBudgetAvailability({
   const monthBudgets = budgets.filter((budget) =>
     budget.ledgerId === ledgerId && budget.yearMonth === yearMonth && budget.period === 'monthly');
   const overall = monthBudgets.find((budget) => budget.includeOverall);
-  const budgetAmount = overall?.amount
+  const baseBudgetAmount = overall?.amount
     ?? monthBudgets.filter((budget) => !budget.includeOverall).reduce((sum, budget) => sum + budget.amount, 0);
   const spending = getNetSpendingByCategory(
     transactions.filter((transaction) => transaction.ledgerId === ledgerId),
@@ -157,7 +191,9 @@ export function calculateMonthlyBudgetAvailability({
   });
 
   return {
-    budgetAmount,
+    baseBudgetAmount,
+    supplementAmount: allocation.supplementAmount,
+    budgetAmount: baseBudgetAmount + allocation.supplementAmount,
     spentAmount,
     reservedAmount: allocation.reservedAmount,
     availableAmount: Math.max(allocation.balanceAmount, 0),

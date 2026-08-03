@@ -5,6 +5,8 @@ import {
   calculateMonthlyPeriodSettlement,
   calculateMonthlyReserveDestinations,
   calculateReserveBalances,
+  getSavingsAllocationProgress,
+  getSavingsPlanProgress,
 } from './reserveLedger';
 
 describe('结余池流水', () => {
@@ -47,6 +49,19 @@ describe('结余池流水', () => {
       { targetType: 'general', amount: 400 },
       { targetType: 'plan', targetPlanId: 'travel', amount: 800 },
     ]);
+  });
+
+  it('通用结余池不展示没有目标含义的预算占比进度', () => {
+    expect(getSavingsAllocationProgress('general', 400, 6000)).toBeNull();
+    expect(getSavingsAllocationProgress('plan', 400, 6000)).toBeCloseTo(6.6667, 4);
+  });
+
+  it('攒钱计划同时给出完成度和剩余目标金额', () => {
+    expect(getSavingsPlanProgress(800, 5000)).toEqual({
+      percentage: 16,
+      remainingAmount: 4200,
+      completed: false,
+    });
   });
 
   it('跨月划转按先进先出保留预算来源月份', () => {
@@ -104,10 +119,56 @@ describe('结余池流水', () => {
       ledgerId: 'daily-ledger',
       yearMonth: '2026-08',
     })).toEqual({
+      baseBudgetAmount: 6000,
+      supplementAmount: 0,
       budgetAmount: 6000,
       spentAmount: 1200,
       reservedAmount: 500,
       availableAmount: 4300,
+    });
+  });
+
+  it('计划划回预算后减少总结余并增加目标月份可用预算', () => {
+    const budgets: Budget[] = [{
+      id: 'overall',
+      ledgerId: 'daily-ledger',
+      amount: 1000,
+      period: 'monthly',
+      yearMonth: '2026-08',
+      includeOverall: true,
+      createdAt: 1,
+    }];
+    const entries: ReserveEntry[] = [
+      entry('saving', 800, 'budget', 'plan', 'travel'),
+      {
+        ...entry('withdrawal', 300, 'plan', 'budget', 'travel'),
+        targetYearMonth: '2026-08',
+        occurredAt: 2,
+        createdAt: 2,
+      },
+    ];
+
+    expect(calculateReserveBalances(plans, entries)).toEqual({
+      general: 0,
+      plans: new Map([['travel', 500]]),
+      total: 500,
+    });
+    expect(calculateMonthlyReserveDestinations(entries, 'daily-ledger', '2026-08')).toEqual([
+      { targetType: 'plan', targetPlanId: 'travel', amount: 500 },
+    ]);
+    expect(calculateMonthlyBudgetAvailability({
+      budgets,
+      transactions: [],
+      reserveEntries: entries,
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+    })).toEqual({
+      baseBudgetAmount: 1000,
+      supplementAmount: 300,
+      budgetAmount: 1300,
+      spentAmount: 0,
+      reservedAmount: 800,
+      availableAmount: 500,
     });
   });
 
@@ -152,6 +213,8 @@ describe('结余池流水', () => {
       ledgerId: 'daily-ledger',
       yearMonth: '2026-08',
     })).toEqual({
+      baseBudgetAmount: 6000,
+      supplementAmount: 0,
       budgetAmount: 6000,
       spentAmount: 200,
       reservedAmount: 500,

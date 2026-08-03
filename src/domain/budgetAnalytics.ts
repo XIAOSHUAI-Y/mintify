@@ -22,6 +22,8 @@ export interface SpendingChange {
 export interface MonthlyBudgetOverview {
   yearMonth: string;
   month: number;
+  baseBudgetAmount: number;
+  supplementAmount: number;
   budgetAmount: number;
   spentAmount: number;
   savedAmount: number;
@@ -49,6 +51,8 @@ interface CalculateBudgetAllocationSummaryOptions {
 
 export interface BudgetAllocationSummary {
   overallBudgetAmount: number;
+  supplementAmount: number;
+  effectiveBudgetAmount: number;
   allocatedAmount: number;
   categoryOverspendAmount: number;
   unbudgetedSpendingAmount: number;
@@ -91,6 +95,13 @@ export function calculateBudgetAllocationSummary({
       && entry.sourceType === 'budget'
       && entry.sourceYearMonth === yearMonth)
     .reduce((sum, entry) => sum + entry.amount, 0);
+  const supplementAmount = reserveEntries
+    .filter((entry) =>
+      entry.ledgerId === ledgerId
+      && entry.targetType === 'budget'
+      && entry.targetYearMonth === yearMonth)
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const effectiveBudgetAmount = overallBudgetAmount + supplementAmount;
 
   for (const [categoryId, spentAmount] of spendingByCategory) {
     const categoryBudget = categoryBudgetById.get(categoryId);
@@ -103,11 +114,13 @@ export function calculateBudgetAllocationSummary({
 
   return {
     overallBudgetAmount,
+    supplementAmount,
+    effectiveBudgetAmount,
     allocatedAmount,
     categoryOverspendAmount,
     unbudgetedSpendingAmount,
     reservedAmount,
-    balanceAmount: overallBudgetAmount
+    balanceAmount: effectiveBudgetAmount
       - allocatedAmount
       - categoryOverspendAmount
       - unbudgetedSpendingAmount
@@ -133,7 +146,14 @@ export function buildMonthlyBudgetOverview({
     const previousBudgets = ledgerBudgets.filter((budget) => budget.yearMonth === previousYearMonth);
     const currentSpending = getNetSpendingByCategory(ledgerTransactions, yearMonth);
     const previousSpending = getNetSpendingByCategory(ledgerTransactions, previousYearMonth);
-    const budgetAmount = getMonthlyBudgetAmount(currentBudgets);
+    const baseBudgetAmount = getMonthlyBudgetAmount(currentBudgets);
+    const supplementAmount = reserveEntries
+      .filter((entry) =>
+        entry.ledgerId === ledgerId
+        && entry.targetType === 'budget'
+        && entry.targetYearMonth === yearMonth)
+      .reduce((sum, entry) => sum + entry.amount, 0);
+    const budgetAmount = baseBudgetAmount + supplementAmount;
     const spentAmount = [...currentSpending.values()].reduce((sum, amount) => sum + amount, 0);
     const savedAmount = reserveEntries
       .filter((entry) =>
@@ -146,6 +166,8 @@ export function buildMonthlyBudgetOverview({
     return {
       yearMonth,
       month,
+      baseBudgetAmount,
+      supplementAmount,
       budgetAmount,
       spentAmount,
       savedAmount,
