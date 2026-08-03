@@ -3,6 +3,7 @@ import { Popover } from 'antd-mobile';
 import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
+import ReserveCenter from '../components/ReserveCenter';
 import { useConfirmDeletion } from '../context/ConfirmDialogContext';
 import { getAppSettings } from '../db';
 import { saveBudgetViewPreference } from '../db/operations';
@@ -17,7 +18,16 @@ import { getNetSpendingByCategory } from '../domain/transactionAccounting';
 import type { Budget, Transaction } from '../types';
 
 export default function BudgetPage() {
-  const { currentLedger, categories, transactions, budgets, addBudget, updateBudget, removeBudget } = useApp();
+  const {
+    currentLedger,
+    categories,
+    transactions,
+    budgets,
+    reserveEntries,
+    addBudget,
+    updateBudget,
+    removeBudget,
+  } = useApp();
   const [creatingBudgetType, setCreatingBudgetType] = useState<'overall' | 'category' | null>(null);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
@@ -81,9 +91,10 @@ export default function BudgetPage() {
           transactions,
           ledgerId: currentLedger.id,
           yearMonth: selectedYearMonth,
+          reserveEntries,
         })
       : EMPTY_ALLOCATION_SUMMARY,
-    [budgets, currentLedger, selectedYearMonth, transactions]
+    [budgets, currentLedger, reserveEntries, selectedYearMonth, transactions]
   );
 
   const spendingByCategory = useMemo(
@@ -98,9 +109,25 @@ export default function BudgetPage() {
 
   const yearlyOverview = useMemo(
     () => currentLedger
-      ? buildMonthlyBudgetOverview({ budgets, transactions, ledgerId: currentLedger.id, year: selectedYear })
+      ? buildMonthlyBudgetOverview({
+          budgets,
+          transactions,
+          reserveEntries,
+          ledgerId: currentLedger.id,
+          year: selectedYear,
+        })
       : [],
-    [budgets, currentLedger, selectedYear, transactions],
+    [budgets, currentLedger, reserveEntries, selectedYear, transactions],
+  );
+
+  const selectedMonthReserved = useMemo(
+    () => reserveEntries
+      .filter((entry) =>
+        entry.ledgerId === currentLedger?.id
+        && entry.sourceType === 'budget'
+        && entry.sourceYearMonth === selectedYearMonth)
+      .reduce((sum, entry) => sum + entry.amount, 0),
+    [currentLedger?.id, reserveEntries, selectedYearMonth],
   );
 
   const calculateSpent = (budget: Budget) => {
@@ -140,6 +167,8 @@ export default function BudgetPage() {
         onToday={() => setSelectedYearMonth(currentMonth)}
       />
 
+      <ReserveCenter yearMonth={selectedYearMonth} showMonthlyTransfer={viewMode === 'month'} />
+
       {viewMode === 'year' ? (
         <YearBudgetView
           overview={yearlyOverview}
@@ -158,6 +187,7 @@ export default function BudgetPage() {
               <BudgetCard
                 budget={overallBudget}
                 spent={calculateSpent(overallBudget)}
+                reserved={selectedMonthReserved}
                 onClick={() => setEditingBudget(overallBudget)}
               />
             ) : (
@@ -182,6 +212,13 @@ export default function BudgetPage() {
                   onClick={() => setEditingBudget(budget)}
                 />
               ))}
+              {selectedMonthReserved > 0 && (
+                <ReserveBudgetCard
+                  amount={selectedMonthReserved}
+                  totalBudget={overallBudget?.amount
+                    ?? categoryBudgets.reduce((sum, budget) => sum + budget.amount, 0)}
+                />
+              )}
             </div>
 
             <BudgetBalanceCard summary={allocationSummary} hasOverallBudget={!!overallBudget} />
@@ -205,6 +242,7 @@ export default function BudgetPage() {
             && (!category.deletedAt || category.id === editingBudget?.categoryId))}
           budgets={budgets}
           transactions={transactions}
+          reserveEntries={reserveEntries}
           yearMonth={selectedYearMonth}
           onSave={(budget) => {
             if (editingBudget) {
@@ -294,6 +332,7 @@ function YearBudgetView({
 }) {
   const totalBudget = overview.reduce((sum, month) => sum + month.budgetAmount, 0);
   const totalSpent = overview.reduce((sum, month) => sum + month.spentAmount, 0);
+  const totalSaved = overview.reduce((sum, month) => sum + month.savedAmount, 0);
   const configuredMonths = overview.filter((month) => month.budgetAmount > 0).length;
   const overspentMonths = overview.filter((month) => month.status === 'overspent').length;
 
@@ -310,7 +349,7 @@ function YearBudgetView({
           </div>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          <YearMetric label="已用" value={formatMoney(totalSpent)} />
+          <YearMetric label="已占用" value={formatMoney(totalSpent + totalSaved)} />
           <YearMetric label="已设预算" value={`${configuredMonths} 个月`} />
           <YearMetric label="超支" value={`${overspentMonths} 个月`} danger={overspentMonths > 0} />
         </div>
@@ -380,7 +419,9 @@ function YearMonthCard({
         </div>
       </div>
       <div className="mt-2 text-sm font-semibold text-slate-700">{formatMoney(month.budgetAmount)}</div>
-      <div className="mt-1 text-[11px] text-slate-400">支出 {formatMoney(month.spentAmount)}</div>
+      <div className="mt-1 text-[11px] text-slate-400">
+        支出 {formatMoney(month.spentAmount)}{month.savedAmount > 0 ? ` · 已存 ${formatMoney(month.savedAmount)}` : ''}
+      </div>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
         <div
           className={`h-full rounded-full ${month.status === 'overspent' ? 'bg-rose-500' : 'bg-emerald-500'}`}
@@ -404,6 +445,7 @@ const EMPTY_ALLOCATION_SUMMARY: BudgetAllocationSummary = {
   allocatedAmount: 0,
   categoryOverspendAmount: 0,
   unbudgetedSpendingAmount: 0,
+  reservedAmount: 0,
   balanceAmount: 0,
 };
 
@@ -425,7 +467,7 @@ function BudgetBalanceCard({
           </div>
           <div>
             <div className="font-medium">预算结余</div>
-            <div className="mt-0.5 text-xs text-slate-400">总预算扣除已分配与超额支出</div>
+            <div className="mt-0.5 text-xs text-slate-400">总预算扣除已分配、已存与超额支出</div>
           </div>
         </div>
         {hasOverallBudget ? (
@@ -444,6 +486,42 @@ function BudgetBalanceCard({
           </span>
         </div>
       )}
+      {hasOverallBudget && summary.reservedAmount > 0 && (
+        <div className="mt-3 text-xs text-amber-700">本月已转入结余 {formatMoney(summary.reservedAmount)}</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 结余预算占用总预算，但不属于消费分类，因此单独展示而不伪造普通分类。
+ */
+function ReserveBudgetCard({ amount, totalBudget }: { amount: number; totalBudget: number }) {
+  const share = totalBudget > 0 ? amount / totalBudget * 100 : 0;
+  const progress = Math.min(share, 100);
+
+  return (
+    <div className="surface-card p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <Icon name="piggy-bank" size={16} />
+          </span>
+          <span className="font-medium text-slate-800">结余预算</span>
+          <span className="truncate text-sm font-semibold text-slate-500">{formatMoney(amount)}</span>
+        </div>
+        <span className="shrink-0 text-sm font-semibold text-amber-700">{Math.round(share)}%</span>
+      </div>
+      <div className="mb-3 h-2 overflow-hidden rounded-full bg-amber-50">
+        <div
+          className="h-full rounded-full bg-amber-400"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="text-slate-500">本月已存 {formatMoney(amount)}</span>
+        <span className="text-amber-700">不计入消费</span>
+      </div>
     </div>
   );
 }
@@ -451,16 +529,19 @@ function BudgetBalanceCard({
 function BudgetCard({
   budget,
   spent,
+  reserved = 0,
   category,
   onClick,
 }: {
   budget: Budget;
   spent: number;
+  reserved?: number;
   category?: { name: string; icon: string; color: string };
   onClick: () => void;
 }) {
-  const progress = budget.amount > 0 ? Math.min((spent / budget.amount) * 100, 100) : 0;
-  const remaining = budget.amount - spent;
+  const occupied = spent + reserved;
+  const progress = budget.amount > 0 ? Math.min((occupied / budget.amount) * 100, 100) : 0;
+  const remaining = budget.amount - occupied;
 
   return (
     <button
@@ -499,7 +580,9 @@ function BudgetCard({
       </div>
 
       <div className="flex justify-between text-sm">
-        <span className="text-gray-500">已用 {formatMoney(spent)}</span>
+        <span className="text-gray-500">
+          已用 {formatMoney(spent)}{reserved > 0 ? ` · 已存 ${formatMoney(reserved)}` : ''}
+        </span>
         <span className={remaining >= 0 ? 'text-green-600' : 'text-red-500'}>
           剩余 {formatMoney(remaining)}
         </span>
@@ -514,6 +597,7 @@ function BudgetForm({
   categories,
   budgets,
   transactions,
+  reserveEntries,
   yearMonth,
   onSave,
   onCancel,
@@ -524,6 +608,7 @@ function BudgetForm({
   categories: { id: string; name: string; icon: string; color: string }[];
   budgets: Budget[];
   transactions: Transaction[];
+  reserveEntries: import('../types').ReserveEntry[];
   yearMonth: string;
   onSave: (budget: Budget) => void;
   onCancel: () => void;
@@ -546,9 +631,10 @@ function BudgetForm({
           transactions,
           ledgerId: currentLedger.id,
           yearMonth,
+          reserveEntries,
         })
       : EMPTY_ALLOCATION_SUMMARY,
-    [budgets, currentLedger, transactions, yearMonth]
+    [budgets, currentLedger, reserveEntries, transactions, yearMonth]
   );
   const projectedBalance = useMemo(() => {
     if (!currentLedger || isOverall || !categoryId || !amount || isNaN(Number(amount))) return null;
@@ -570,8 +656,9 @@ function BudgetForm({
       transactions,
       ledgerId: currentLedger.id,
       yearMonth,
+      reserveEntries,
     }).balanceAmount;
-  }, [amount, budget, budgets, categoryId, currentLedger, isOverall, transactions, yearMonth]);
+  }, [amount, budget, budgets, categoryId, currentLedger, isOverall, reserveEntries, transactions, yearMonth]);
 
   const handleSave = () => {
     if (!currentLedger || !amount || isNaN(Number(amount))) return;

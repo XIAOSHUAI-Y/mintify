@@ -70,6 +70,40 @@ export interface Budget {
   createdAt: number;
 }
 
+/**
+ * “攒钱计划”只保存目标本身，实际余额始终由 ReserveEntry 流水计算得出。
+ * 这样修改目标金额、归档计划都不会破坏历史结余。
+ */
+export interface SavingsPlan {
+  id: string;
+  ledgerId: string;
+  name: string;
+  targetAmount?: number;
+  icon: string;
+  color: string;
+  createdAt: number;
+  archivedAt?: number;
+}
+
+export type ReserveEntrySourceType = 'budget' | 'general' | 'plan';
+export type ReserveEntryTargetType = 'general' | 'plan';
+
+/** 通用结余池与攒钱计划共用一套不可变流水，内部划转不会重复增加总结余。 */
+export interface ReserveEntry {
+  id: string;
+  ledgerId: string;
+  amount: number;
+  sourceType: ReserveEntrySourceType;
+  sourcePlanId?: string;
+  targetType: ReserveEntryTargetType;
+  targetPlanId?: string;
+  /** 从预算转入时记录来源月份，确保对应月份的可用预算会同步扣减。 */
+  sourceYearMonth?: string;
+  note: string;
+  occurredAt: number;
+  createdAt: number;
+}
+
 export interface RecurringRule {
   id: string;
   ledgerId: string;

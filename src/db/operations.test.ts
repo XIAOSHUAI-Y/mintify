@@ -1,7 +1,16 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deleteDB } from 'idb';
-import type { Category, FundCategory, FundTransaction, Ledger, Transaction } from '../types';
+import type {
+  Budget,
+  Category,
+  FundCategory,
+  FundTransaction,
+  Ledger,
+  ReserveEntry,
+  SavingsPlan,
+  Transaction,
+} from '../types';
 import {
   closeDB,
   DB_NAME,
@@ -23,7 +32,12 @@ import {
   inspectBackup,
   saveFundTransaction,
   saveFundCategory,
+  getReserveEntries,
+  getSavingsPlans,
+  saveReserveEntry,
+  saveSavingsPlan,
   saveCategory,
+  saveBudget,
   saveBudgetViewPreference,
   saveLedger,
   saveTransaction,
@@ -185,9 +199,9 @@ describe('Mintify 备份恢复', () => {
     });
 
     const backup = await exportData();
-    expect(JSON.parse(backup)).toMatchObject({ schemaVersion: 6 });
+    expect(JSON.parse(backup)).toMatchObject({ schemaVersion: 7 });
     expect(inspectBackup(backup)).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       ledgers: 1,
       transactions: 1,
     });
@@ -270,7 +284,7 @@ describe('Mintify 备份恢复', () => {
 
     const backup = await exportData();
     expect(inspectBackup(backup)).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       fundCategories: 1,
       fundTransactions: 1,
     });
@@ -278,5 +292,124 @@ describe('Mintify 备份恢复', () => {
     await importData(backup, { mode: 'replace' });
     expect(await getFundCategories(fundCategory.ledgerId)).toEqual([fundCategory]);
     expect(await getFundTransactions(fundTransaction.ledgerId)).toEqual([fundTransaction]);
+  });
+
+  it('备份恢复包含攒钱计划与结余流水', async () => {
+    const plan: SavingsPlan = {
+      id: 'travel-plan',
+      ledgerId: 'daily-ledger',
+      name: '一起去旅行',
+      targetAmount: 5000,
+      icon: 'plane',
+      color: '#F59E0B',
+      createdAt: 1,
+    };
+    const budget: Budget = {
+      id: 'august-budget',
+      ledgerId: plan.ledgerId,
+      amount: 6000,
+      period: 'monthly',
+      yearMonth: '2026-08',
+      includeOverall: true,
+      createdAt: 1,
+    };
+    const entry: ReserveEntry = {
+      id: 'august-saving',
+      ledgerId: plan.ledgerId,
+      amount: 500,
+      sourceType: 'budget',
+      targetType: 'plan',
+      targetPlanId: plan.id,
+      sourceYearMonth: '2026-08',
+      note: '八月存钱',
+      occurredAt: new Date(2026, 7, 2).getTime(),
+      createdAt: 2,
+    };
+    await saveBudget(budget);
+    await saveSavingsPlan(plan);
+    await saveReserveEntry(entry);
+
+    const backup = await exportData();
+    expect(inspectBackup(backup)).toMatchObject({ savingsPlans: 1, reserveEntries: 1 });
+    await importData(backup, { mode: 'replace' });
+
+    expect(await getSavingsPlans(plan.ledgerId)).toEqual([plan]);
+    expect(await getReserveEntries(plan.ledgerId)).toEqual([entry]);
+  });
+});
+
+describe('结余流水写入校验', () => {
+  afterEach(async () => {
+    await closeDB();
+    await deleteDB(DB_NAME);
+  });
+
+  it('拒绝转入超过当月可用预算的金额', async () => {
+    await saveBudget({
+      id: 'overall-aug',
+      ledgerId: 'daily-ledger',
+      amount: 1000,
+      period: 'monthly',
+      yearMonth: '2026-08',
+      includeOverall: true,
+      createdAt: 1,
+    });
+
+    await expect(saveReserveEntry({
+      id: 'too-much',
+      ledgerId: 'daily-ledger',
+      amount: 1001,
+      sourceType: 'budget',
+      targetType: 'general',
+      sourceYearMonth: '2026-08',
+      note: '',
+      occurredAt: 1,
+      createdAt: 1,
+    })).rejects.toThrow('超过该月可用预算');
+    expect(await getReserveEntries('daily-ledger')).toEqual([]);
+  });
+
+  it('通用池内部划转后总结余不变且不能透支', async () => {
+    const plan: SavingsPlan = {
+      id: 'travel',
+      ledgerId: 'daily-ledger',
+      name: '旅行',
+      icon: 'plane',
+      color: '#3B82F6',
+      createdAt: 1,
+    };
+    await saveBudget({
+      id: 'overall-aug',
+      ledgerId: plan.ledgerId,
+      amount: 1000,
+      period: 'monthly',
+      yearMonth: '2026-08',
+      includeOverall: true,
+      createdAt: 1,
+    });
+    await saveSavingsPlan(plan);
+    await saveReserveEntry({
+      id: 'to-general',
+      ledgerId: plan.ledgerId,
+      amount: 300,
+      sourceType: 'budget',
+      targetType: 'general',
+      sourceYearMonth: '2026-08',
+      note: '',
+      occurredAt: 1,
+      createdAt: 1,
+    });
+
+    await expect(saveReserveEntry({
+      id: 'overdraft',
+      ledgerId: plan.ledgerId,
+      amount: 301,
+      sourceType: 'general',
+      targetType: 'plan',
+      targetPlanId: plan.id,
+      note: '',
+      occurredAt: 2,
+      createdAt: 2,
+    })).rejects.toThrow('来源结余不足');
   });
 });

@@ -6,6 +6,8 @@ import type {
   FundTransaction,
   Ledger,
   RecurringRule,
+  ReserveEntry,
+  SavingsPlan,
   Transaction,
 } from '../types';
 import {
@@ -29,6 +31,8 @@ import {
   getLedgers,
   linkExistingLivingExpenseIncome,
   getRecurringRules,
+  getReserveEntries,
+  getSavingsPlans,
   getTransactions,
   saveBudget,
   saveCategory,
@@ -36,6 +40,8 @@ import {
   saveFundCategory,
   saveLedger,
   saveRecurringRule,
+  saveReserveEntry,
+  saveSavingsPlan,
   saveTransaction,
   setDefaultLedger,
 } from '../db/operations';
@@ -53,6 +59,8 @@ interface AppState {
   budgets: Budget[];
   recurringRules: RecurringRule[];
   fundTransactions: FundTransaction[];
+  savingsPlans: SavingsPlan[];
+  reserveEntries: ReserveEntry[];
   isLoading: boolean;
 }
 
@@ -82,6 +90,8 @@ interface AppContextType extends AppState {
   removeFundRecord: (transactionId: string) => Promise<void>;
   saveLivingExpenseAllocation: (allocation: FundTransaction) => Promise<void>;
   linkExistingLivingExpenseAllocation: (transaction: Transaction) => Promise<void>;
+  savePlan: (plan: SavingsPlan) => Promise<void>;
+  addReserveEntry: (entry: ReserveEntry) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -96,6 +106,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     budgets: [],
     recurringRules: [],
     fundTransactions: [],
+    savingsPlans: [],
+    reserveEntries: [],
     isLoading: true,
   });
 
@@ -113,13 +125,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await ensureRefundCategory(currentLedger.id);
     await ensureFundCategories(currentLedger.id);
 
-    const [categories, fundCategories, transactions, budgets, recurringRules, fundTransactions] = await Promise.all([
+    const [
+      categories,
+      fundCategories,
+      transactions,
+      budgets,
+      recurringRules,
+      fundTransactions,
+      savingsPlans,
+      reserveEntries,
+    ] = await Promise.all([
       getCategoriesByLedger(currentLedger.id),
       getFundCategories(currentLedger.id),
       getTransactions(currentLedger.id),
       getBudgets(currentLedger.id),
       getRecurringRules(currentLedger.id),
       getFundTransactions(currentLedger.id),
+      getSavingsPlans(currentLedger.id),
+      getReserveEntries(currentLedger.id),
     ]);
 
     setState({
@@ -131,6 +154,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       budgets,
       recurringRules,
       fundTransactions,
+      savingsPlans,
+      reserveEntries,
       isLoading: false,
     });
   };
@@ -393,6 +418,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  const savePlan = async (plan: SavingsPlan) => {
+    await saveSavingsPlan(plan);
+    setState((s) => {
+      const exists = s.savingsPlans.some((item) => item.id === plan.id);
+      return {
+        ...s,
+        savingsPlans: updateStateItem(s.savingsPlans, plan, exists ? 'update' : 'add'),
+      };
+    });
+  };
+
+  const addReserveEntry = async (entry: ReserveEntry) => {
+    await saveReserveEntry(entry);
+    setState((s) => ({ ...s, reserveEntries: [entry, ...s.reserveEntries] }));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -422,6 +463,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         removeFundRecord,
         saveLivingExpenseAllocation,
         linkExistingLivingExpenseAllocation,
+        savePlan,
+        addReserveEntry,
       }}
     >
       {children}

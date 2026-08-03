@@ -6,6 +6,8 @@ import type {
   FundCategory,
   Ledger,
   RecurringRule,
+  ReserveEntry,
+  SavingsPlan,
   Transaction,
 } from '../types';
 import { shouldRemoveLinkedMainIncome } from '../domain/fundLedger';
@@ -24,6 +26,8 @@ import {
   getDB,
   getFundTransactionsByLedger,
   getFundCategoriesByLedger,
+  getReserveEntriesByLedger,
+  getSavingsPlansByLedger,
   getById,
   getRecurringRulesByLedger,
   getTransactionsByLedger,
@@ -31,6 +35,7 @@ import {
   migrateLegacySettings,
   saveAppSettings,
 } from './index';
+import { calculateMonthlyBudgetAvailability, calculateReserveBalances } from '../domain/reserveLedger';
 import {
   EXPENSE_CATEGORIES,
   FUND_EXPENSE_CATEGORIES,
@@ -162,6 +167,10 @@ export async function deleteLedger(ledgerId: string): Promise<void> {
   for (const transaction of fundTransactions) await deleteFundTransaction(transaction.id);
   const fundCategories = await getFundCategoriesByLedger(ledgerId);
   for (const category of fundCategories) await deleteItem('fundCategories', category.id);
+  const savingsPlans = await getSavingsPlansByLedger(ledgerId);
+  for (const plan of savingsPlans) await deleteItem('savingsPlans', plan.id);
+  const reserveEntries = await getReserveEntriesByLedger(ledgerId);
+  for (const entry of reserveEntries) await deleteItem('reserveEntries', entry.id);
 }
 
 export async function setDefaultLedger(ledgerId: string): Promise<void> {
@@ -368,6 +377,77 @@ export async function getBudgets(ledgerId: string): Promise<Budget[]> {
   return getBudgetsByLedger(ledgerId);
 }
 
+// Reserve pool and savings plans
+export async function getSavingsPlans(ledgerId: string): Promise<SavingsPlan[]> {
+  const plans = await getSavingsPlansByLedger(ledgerId);
+  return plans.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function saveSavingsPlan(plan: SavingsPlan): Promise<void> {
+  if (!plan.name.trim()) throw new Error('计划名称不能为空');
+  if (plan.targetAmount !== undefined && (!Number.isFinite(plan.targetAmount) || plan.targetAmount <= 0)) {
+    throw new Error('目标金额必须大于 0');
+  }
+  await putItem('savingsPlans', { ...plan, name: plan.name.trim() });
+}
+
+export async function getReserveEntries(ledgerId: string): Promise<ReserveEntry[]> {
+  const entries = await getReserveEntriesByLedger(ledgerId);
+  return entries.sort((a, b) => b.occurredAt - a.occurredAt || b.createdAt - a.createdAt);
+}
+
+/**
+ * 写入前同时校验来源余额与预算可用额，避免多个 UI 入口产生负数结余。
+ * ReserveEntry 采用只追加策略，已经存在的流水不能被静默覆盖。
+ */
+export async function saveReserveEntry(entry: ReserveEntry): Promise<void> {
+  if (!Number.isFinite(entry.amount) || entry.amount <= 0) throw new Error('转入金额必须大于 0');
+  if (await getById<ReserveEntry>('reserveEntries', entry.id)) throw new Error('该结余流水已经存在');
+
+  const plans = await getSavingsPlansByLedger(entry.ledgerId);
+  const targetPlan = entry.targetType === 'plan'
+    ? plans.find((plan) => plan.id === entry.targetPlanId && !plan.archivedAt)
+    : undefined;
+  if (entry.targetType === 'plan' && !targetPlan) throw new Error('目标攒钱计划不存在或已归档');
+  if (entry.sourceType === 'plan' && !plans.some((plan) => plan.id === entry.sourcePlanId)) {
+    throw new Error('来源攒钱计划不存在');
+  }
+  if (
+    entry.sourceType === 'plan'
+    && entry.targetType === 'plan'
+    && entry.sourcePlanId === entry.targetPlanId
+  ) {
+    throw new Error('不能转入同一个攒钱计划');
+  }
+
+  const entries = await getReserveEntriesByLedger(entry.ledgerId);
+  if (entry.sourceType === 'budget') {
+    if (!entry.sourceYearMonth || !/^\d{4}-(0[1-9]|1[0-2])$/.test(entry.sourceYearMonth)) {
+      throw new Error('预算来源月份不正确');
+    }
+    const [budgets, transactions] = await Promise.all([
+      getBudgetsByLedger(entry.ledgerId),
+      getTransactionsByLedger(entry.ledgerId),
+    ]);
+    const availability = calculateMonthlyBudgetAvailability({
+      budgets,
+      transactions,
+      reserveEntries: entries,
+      ledgerId: entry.ledgerId,
+      yearMonth: entry.sourceYearMonth,
+    });
+    if (entry.amount > availability.availableAmount) throw new Error('转入金额超过该月可用预算');
+  } else {
+    const balances = calculateReserveBalances(plans, entries);
+    const sourceBalance = entry.sourceType === 'general'
+      ? balances.general
+      : balances.plans.get(entry.sourcePlanId ?? '') ?? 0;
+    if (entry.amount > sourceBalance) throw new Error('来源结余不足');
+  }
+
+  await putItem('reserveEntries', entry);
+}
+
 export async function saveBudgetViewPreference(
   ledgerId: string,
   preference: AppSettings['budgetViewByLedger'][string],
@@ -562,7 +642,7 @@ export function calculateBudgetSpent(
   return budget.categoryId ? spending.get(budget.categoryId) ?? 0 : 0;
 }
 
-const BACKUP_SCHEMA_VERSION = 6;
+const BACKUP_SCHEMA_VERSION = 7;
 
 interface BackupData {
   ledgers: Ledger[];
@@ -572,6 +652,8 @@ interface BackupData {
   recurringRules: RecurringRule[];
   fundCategories: FundCategory[];
   fundTransactions: FundTransaction[];
+  savingsPlans: SavingsPlan[];
+  reserveEntries: ReserveEntry[];
   settings: AppSettings[];
 }
 
@@ -616,7 +698,7 @@ function parseBackup(json: string): BackupData {
 
   let rawData: Record<string, unknown>;
   if ('schemaVersion' in parsed) {
-    if (![2, 3, 4, 5, BACKUP_SCHEMA_VERSION].includes(parsed.schemaVersion as number)) {
+    if (![2, 3, 4, 5, 6, BACKUP_SCHEMA_VERSION].includes(parsed.schemaVersion as number)) {
       throw new Error(`备份文件版本不受支持：${String(parsed.schemaVersion)}`);
     }
     if (!isRecord(parsed.data)) throw new Error('备份文件缺少 data 字段');
@@ -667,6 +749,29 @@ function parseBackup(json: string): BackupData {
       && hasNumber(item, 'createdAt')
       && (item.type === 'income' || item.type === 'expense')
       && (item.kind === 'record' || item.kind === 'living-expense-allocation'));
+  const savingsPlans = rawData.savingsPlans === undefined
+    ? []
+    : validateRecords<SavingsPlan>(rawData.savingsPlans, '攒钱计划', (item) =>
+      hasString(item, 'id')
+      && hasString(item, 'ledgerId')
+      && hasString(item, 'name')
+      && hasString(item, 'icon')
+      && hasString(item, 'color')
+      && hasNumber(item, 'createdAt'));
+  const reserveEntries = rawData.reserveEntries === undefined
+    ? []
+    : validateRecords<ReserveEntry>(rawData.reserveEntries, '结余流水', (item) =>
+      hasString(item, 'id')
+      && hasString(item, 'ledgerId')
+      && hasNumber(item, 'amount')
+      && (item.amount as number) > 0
+      && (item.sourceType === 'budget' || item.sourceType === 'general' || item.sourceType === 'plan')
+      && (item.targetType === 'general' || item.targetType === 'plan')
+      && hasNumber(item, 'occurredAt')
+      && hasNumber(item, 'createdAt')
+      && (item.sourceType !== 'budget' || hasString(item, 'sourceYearMonth'))
+      && (item.sourceType !== 'plan' || hasString(item, 'sourcePlanId'))
+      && (item.targetType !== 'plan' || hasString(item, 'targetPlanId')));
   const settings = rawData.settings === undefined
     ? [{ ...DEFAULT_APP_SETTINGS }]
     : validateRecords<AppSettings>(rawData.settings, '设置', (item) =>
@@ -684,6 +789,8 @@ function parseBackup(json: string): BackupData {
     recurringRules,
     fundCategories,
     fundTransactions,
+    savingsPlans,
+    reserveEntries,
     settings,
   };
 }
@@ -716,6 +823,8 @@ export interface ImportResult {
   recurringRules: number;
   fundCategories: number;
   fundTransactions: number;
+  savingsPlans: number;
+  reserveEntries: number;
 }
 
 export interface BackupPreview extends ImportResult {
@@ -735,6 +844,8 @@ export function inspectBackup(json: string): BackupPreview {
     recurringRules: data.recurringRules.length,
     fundCategories: data.fundCategories.length,
     fundTransactions: data.fundTransactions.length,
+    savingsPlans: data.savingsPlans.length,
+    reserveEntries: data.reserveEntries.length,
   };
   if (typeof parsed.exportedAt === 'number') preview.exportedAt = parsed.exportedAt;
   return preview;
@@ -757,6 +868,8 @@ export async function exportData(): Promise<string> {
       recurringRules: await getAll<RecurringRule>('recurringRules'),
       fundCategories: await getAll<FundCategory>('fundCategories'),
       fundTransactions: await getAll<FundTransaction>('fundTransactions'),
+      savingsPlans: await getAll<SavingsPlan>('savingsPlans'),
+      reserveEntries: await getAll<ReserveEntry>('reserveEntries'),
       settings: [settings],
     },
   };
@@ -778,6 +891,8 @@ export async function importData(
     'recurringRules',
     'fundCategories',
     'fundTransactions',
+    'savingsPlans',
+    'reserveEntries',
     'settings',
   ] as const;
   const transaction = db.transaction(storeNames, 'readwrite');
@@ -796,6 +911,8 @@ export async function importData(
   for (const item of data.recurringRules) await transaction.objectStore('recurringRules').put(item);
   for (const item of data.fundCategories) await transaction.objectStore('fundCategories').put(item);
   for (const item of data.fundTransactions) await transaction.objectStore('fundTransactions').put(item);
+  for (const item of data.savingsPlans) await transaction.objectStore('savingsPlans').put(item);
+  for (const item of data.reserveEntries) await transaction.objectStore('reserveEntries').put(item);
   for (const item of data.settings) await transaction.objectStore('settings').put(item);
   await transaction.done;
 
@@ -807,5 +924,7 @@ export async function importData(
     recurringRules: data.recurringRules.length,
     fundCategories: data.fundCategories.length,
     fundTransactions: data.fundTransactions.length,
+    savingsPlans: data.savingsPlans.length,
+    reserveEntries: data.reserveEntries.length,
   };
 }
