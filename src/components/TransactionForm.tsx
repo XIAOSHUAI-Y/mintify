@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DatePicker, Toast } from 'antd-mobile';
-import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank } from 'lucide-react';
+import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
 import HorizontalScrollArea from './HorizontalScrollArea';
@@ -46,6 +46,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     editingTransaction?.kind === 'refund' ? 'refund' : 'standard',
   );
   const [linkedExpenseId, setLinkedExpenseId] = useState(editingTransaction?.linkedExpenseTransactionId || '');
+  const [refundKeyword, setRefundKeyword] = useState('');
   const [saveError, setSaveError] = useState('');
   const [savingTarget, setSavingTarget] = useState('general');
   const isRefundMode = type === 'income' && incomeMode === 'refund';
@@ -88,6 +89,20 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       && getRemainingRefundableAmount(transactions, transaction.id, editingTransaction?.id) > 0)
     .sort((a, b) => b.occurredAt - a.occurredAt),
   [editingTransaction?.id, transactions]);
+
+  // 可退支出可能上百条，按备注/分类/金额过滤后再展示。
+  const filteredRefundableExpenses = useMemo(() => {
+    const query = refundKeyword.trim().toLowerCase();
+    if (!query) return refundableExpenses;
+    return refundableExpenses.filter((expense) => {
+      const category = categories.find((item) => item.id === expense.categoryId);
+      return (
+        expense.note.toLowerCase().includes(query)
+        || (category?.name.toLowerCase().includes(query) ?? false)
+        || String(expense.amount).includes(query)
+      );
+    });
+  }, [categories, refundableExpenses, refundKeyword]);
 
   useEffect(() => {
     if (isSavingMode) return;
@@ -423,16 +438,45 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
               <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
                 <Link2 size={16} className="text-amber-600 dark:text-amber-400" /> 绑定支出账单
               </div>
-              <div className="text-xs text-slate-400">{refundableExpenses.length} 笔可退</div>
+              <div className="text-xs text-slate-400">
+                {refundKeyword.trim()
+                  ? `匹配 ${filteredRefundableExpenses.length} / ${refundableExpenses.length} 笔`
+                  : `${refundableExpenses.length} 笔可退`}
+              </div>
             </div>
+            {refundableExpenses.length > 0 && (
+              <div className="relative mb-3">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={refundKeyword}
+                  onChange={(event) => setRefundKeyword(event.target.value)}
+                  placeholder="搜索备注、分类或金额"
+                  className="min-h-10 w-full rounded-full bg-slate-100 pl-9 pr-8 text-sm outline-none focus:ring-2 focus:ring-amber-300 dark:bg-slate-800 dark:text-slate-100"
+                />
+                {refundKeyword && (
+                  <button
+                    onClick={() => setRefundKeyword('')}
+                    aria-label="清空搜索"
+                    className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+            )}
             {refundableExpenses.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center dark:border-slate-700 dark:bg-slate-800/60">
                 <div className="text-sm font-medium text-slate-500 dark:text-slate-400">没有可退款的支出</div>
                 <div className="mt-1 text-xs text-slate-400">请先记录支出，或检查是否已经全额退款</div>
               </div>
+            ) : filteredRefundableExpenses.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center dark:border-slate-700 dark:bg-slate-800/60">
+                <div className="text-sm font-medium text-slate-500 dark:text-slate-400">没有匹配的支出</div>
+                <div className="mt-1 text-xs text-slate-400">换个关键词试试</div>
+              </div>
             ) : (
               <div className="space-y-2">
-                {refundableExpenses.map((expense) => {
+                {filteredRefundableExpenses.map((expense) => {
                   const category = categories.find((item) => item.id === expense.categoryId);
                   const remaining = getRemainingRefundableAmount(transactions, expense.id, editingTransaction?.id);
                   const selected = linkedExpenseId === expense.id;
