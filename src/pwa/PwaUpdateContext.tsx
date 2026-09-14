@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { checkServiceWorkerUpdate } from './update-check';
+import { fetchReleaseNotes, type ReleaseNotesPayload } from './release-notes';
 import { PwaUpdateContext, type UpdateCheckStatus } from './update-context';
 
 const AUTO_CHECK_INTERVAL = 15 * 60 * 1000;
@@ -18,6 +19,12 @@ export function PwaUpdateProvider({ children }: { children: ReactNode }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [checkStatus, setCheckStatus] = useState<UpdateCheckStatus>('idle');
   const [checkError, setCheckError] = useState<string | null>(null);
+  const [releaseNotes, setReleaseNotes] = useState<ReleaseNotesPayload | null>(null);
+
+  const loadReleaseNotes = useCallback(async () => {
+    const notes = await fetchReleaseNotes();
+    if (notes) setReleaseNotes(notes);
+  }, []);
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -80,8 +87,19 @@ export function PwaUpdateProvider({ children }: { children: ReactNode }) {
   }, [checkSilently]);
 
   useEffect(() => {
-    if (needRefresh) setCheckStatus('update-available');
-  }, [needRefresh]);
+    if (needRefresh) {
+      setCheckStatus('update-available');
+      // 后台下载完成即预取更新说明，用户点开弹窗时内容已就绪。
+      void loadReleaseNotes();
+    }
+  }, [needRefresh, loadReleaseNotes]);
+
+  const openUpdateDialog = useCallback(() => {
+    setDialogOpen(true);
+    setCheckError(null);
+    setCheckStatus(needRefresh ? 'update-available' : 'idle');
+    void loadReleaseNotes();
+  }, [needRefresh, loadReleaseNotes]);
 
   const checkForUpdates = useCallback(async () => {
     setDialogOpen(true);
@@ -96,6 +114,7 @@ export function PwaUpdateProvider({ children }: { children: ReactNode }) {
 
       const result = await checkServiceWorkerUpdate(registration);
       setCheckStatus(result);
+      if (result === 'update-available') void loadReleaseNotes();
     } catch (error) {
       setCheckStatus('error');
       setCheckError(error instanceof Error ? error.message : '暂时无法检查更新，请稍后重试。');
@@ -126,7 +145,9 @@ export function PwaUpdateProvider({ children }: { children: ReactNode }) {
         dialogOpen,
         checkStatus,
         checkError,
+        releaseNotes,
         checkForUpdates,
+        openUpdateDialog,
         applyUpdate,
         closeDialog,
         dismissPrompt,

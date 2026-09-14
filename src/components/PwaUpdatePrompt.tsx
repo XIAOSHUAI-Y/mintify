@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, Download, LoaderCircle, RefreshCw, X } from 'lucide-react';
 import { usePwaUpdate } from '../pwa/update-context';
-import { APP_VERSION } from '../pwa/app-version';
+import { APP_COMMIT_SHA, APP_VERSION } from '../pwa/app-version';
+import { selectNewCommits } from '../pwa/release-notes';
 
 export function PwaUpdatePrompt() {
   const {
@@ -10,6 +11,7 @@ export function PwaUpdatePrompt() {
     checkStatus,
     checkError,
     checkForUpdates,
+    openUpdateDialog,
     applyUpdate,
     closeDialog,
     dismissPrompt,
@@ -30,10 +32,10 @@ export function PwaUpdatePrompt() {
               </div>
               {needRefresh && (
                 <button
-                  onClick={() => void applyUpdate()}
+                  onClick={openUpdateDialog}
                   className="mt-3 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-black"
                 >
-                  立即更新
+                  查看更新内容
                 </button>
               )}
             </div>
@@ -77,6 +79,8 @@ export function PwaUpdatePrompt() {
                 {getStatusDescription(checkStatus, checkError, needRefresh)}
               </div>
 
+              {checkStatus === 'update-available' && <ReleaseNotesSection />}
+
               {checkStatus === 'update-available' && needRefresh && (
                 <button
                   onClick={() => void applyUpdate()}
@@ -106,6 +110,43 @@ export function PwaUpdatePrompt() {
         </div>
       )}
     </>
+  );
+}
+
+function ReleaseNotesSection() {
+  const { releaseNotes } = usePwaUpdate();
+  const selection = releaseNotes
+    ? selectNewCommits(releaseNotes.commits, APP_COMMIT_SHA)
+    : null;
+
+  return (
+    <div className="mt-4 w-full rounded-2xl bg-slate-50 p-3 text-left dark:bg-slate-700/50">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">本次更新内容</span>
+        {releaseNotes && (
+          <span className="text-[11px] text-slate-400">
+            v{releaseNotes.version}+{releaseNotes.buildNumber}
+          </span>
+        )}
+      </div>
+      {selection && selection.commits.length > 0 ? (
+        <ul className="mt-2 max-h-40 space-y-1.5 overflow-y-auto">
+          {selection.commits.map((commit) => (
+            <li key={commit.sha} className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+              · {commit.subject}
+              <span className="ml-1 text-slate-400">{commit.date.slice(5).replace('-', '/')}</span>
+            </li>
+          ))}
+          {selection.truncated && (
+            <li className="text-xs leading-5 text-slate-400">· 以及更早的若干次更新</li>
+          )}
+        </ul>
+      ) : (
+        <div className="mt-2 text-xs leading-5 text-slate-400">
+          更新说明暂时无法获取，更新后即为最新版本。
+        </div>
+      )}
+    </div>
   );
 }
 
