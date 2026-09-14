@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { DatePicker, Toast } from 'antd-mobile';
+import { DatePicker } from 'antd-mobile';
 import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
@@ -10,6 +10,7 @@ import type { Transaction } from '../types';
 import { getRemainingRefundableAmount } from '../domain/transactionAccounting';
 import { calculateMonthlyBudgetAvailability } from '../domain/reserveLedger';
 import { buildBudgetAlerts } from '../domain/budgetAlerts';
+import { showToast } from '../utils/toast';
 
 type EntryMode = Transaction['type'] | 'saving';
 
@@ -242,14 +243,13 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       categoryName: categories.find((category) => category.id === saved.categoryId)?.name,
     });
     if (alerts.length === 0) return;
-    Toast.show({
-      duration: 3000,
-      content: alerts
+    showToast(
+      alerts
         .map((alert) => alert.severity === 'exceeded'
           ? `${alert.label}已超支（${Math.round(alert.percentage)}%）`
           : `${alert.label}已用 ${Math.round(alert.percentage)}%`)
         .join('；'),
-    });
+    );
   };
 
   const canSave = Boolean(
