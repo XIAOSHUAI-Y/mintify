@@ -147,20 +147,20 @@ export default function BudgetPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 pb-28">
+    <div className="min-h-screen bg-slate-50 px-4 pb-28 dark:bg-slate-800/60">
       <header className="safe-top mb-4 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">预算管理</h1>
-          <p className="mt-1 text-sm text-slate-500">按月规划，按年回看</p>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">按月规划，按年回看</p>
         </div>
-        <div className="flex rounded-xl bg-slate-200/70 p-1 text-xs font-semibold text-slate-500">
+        <div className="flex rounded-xl bg-slate-200/70 p-1 text-xs font-semibold text-slate-500 dark:bg-slate-700/60 dark:text-slate-400">
           {(['month', 'year'] as const).map((mode) => (
             <button
               key={mode}
               onClick={() => setViewMode(mode)}
               aria-pressed={viewMode === mode}
               className={`rounded-lg px-3 py-2 transition-all ${
-                viewMode === mode ? 'bg-white text-slate-900 shadow-sm' : ''
+                viewMode === mode ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-800 dark:text-slate-50' : ''
               }`}
             >
               {mode === 'month' ? '月' : '年'}
@@ -206,13 +206,13 @@ export default function BudgetPage() {
                 <button
                   onClick={() => setTransferOpen(true)}
                   disabled={selectedYearMonth > currentMonth || allocationSummary.balanceAmount <= 0}
-                  className="group mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 to-white px-4 text-left shadow-[0_8px_24px_rgba(14,165,233,0.08)] active:scale-[0.995] disabled:border-slate-100 disabled:bg-none disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none"
+                  className="group mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 to-white px-4 text-left shadow-[0_8px_24px_rgba(14,165,233,0.08)] active:scale-[0.995] disabled:border-slate-100 disabled:bg-none disabled:bg-slate-100 disabled:text-slate-400 disabled:shadow-none dark:border-sky-400/20 dark:from-sky-400/15 dark:to-slate-800 dark:disabled:border-slate-700/50 dark:disabled:bg-slate-700/60"
                 >
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-white shadow-sm group-disabled:bg-slate-300">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500 text-white shadow-sm group-disabled:bg-slate-300 dark:group-disabled:bg-slate-600">
                     <PiggyBank size={20} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-slate-800 group-disabled:text-slate-500">转入攒钱计划</span>
+                    <span className="block text-sm font-semibold text-slate-800 group-disabled:text-slate-500 dark:text-slate-100 dark:group-disabled:text-slate-400">转入攒钱计划</span>
                     <span className="mt-0.5 block text-xs text-slate-400">
                       {selectedYearMonth > currentMonth
                         ? '未来月份暂不能转入'
@@ -221,13 +221,13 @@ export default function BudgetPage() {
                           : '本月暂无可分配预算'}
                     </span>
                   </span>
-                  <ChevronRight size={18} className="shrink-0 text-sky-500 group-disabled:text-slate-300" />
+                  <ChevronRight size={18} className="shrink-0 text-sky-500 group-disabled:text-slate-300 dark:text-sky-400 dark:group-disabled:text-slate-600" />
                 </button>
               </>
             ) : (
               <button
                 onClick={() => setCreatingBudgetType('overall')}
-                className="surface-card w-full border-dashed py-6 text-sm font-medium text-slate-500 active:bg-slate-50"
+                className="surface-card w-full border-dashed py-6 text-sm font-medium text-slate-500 active:bg-slate-50 dark:text-slate-400 dark:active:bg-slate-800"
               >
                 + 设置 {Number(selectedYearMonth.slice(5))} 月总预算
               </button>
@@ -277,7 +277,7 @@ export default function BudgetPage() {
 
             <button
               onClick={() => setCreatingBudgetType('category')}
-              className="surface-card mt-4 w-full border-dashed py-4 text-sm font-medium text-slate-500 active:bg-slate-50"
+              className="surface-card mt-4 w-full border-dashed py-4 text-sm font-medium text-slate-500 active:bg-slate-50 dark:text-slate-400 dark:active:bg-slate-800"
             >
               + 添加分类预算
             </button>
@@ -409,16 +409,16 @@ function BudgetSavingsTransferDialog({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 p-4">
-      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
-        <div className="text-center font-semibold text-slate-900">从预算转入攒钱</div>
+      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl dark:bg-slate-800">
+        <div className="text-center font-semibold text-slate-900 dark:text-slate-50">从预算转入攒钱</div>
         <div className="mt-1 text-center text-xs text-slate-400">
           {Number(yearMonth.slice(5))} 月可分配预算 {formatMoney(maxAmount)}
         </div>
 
         <label className="mt-5 block">
-          <span className="mb-2 block text-xs font-medium text-slate-500">转入金额</span>
-          <div className="flex min-h-14 items-center rounded-xl border border-slate-200 px-3 focus-within:border-sky-400 focus-within:ring-4 focus-within:ring-sky-100">
-            <span className="mr-1 text-lg font-semibold text-slate-500">¥</span>
+          <span className="mb-2 block text-xs font-medium text-slate-500 dark:text-slate-400">转入金额</span>
+          <div className="flex min-h-14 items-center rounded-xl border border-slate-200 px-3 focus-within:border-sky-400 focus-within:ring-4 focus-within:ring-sky-100 dark:border-slate-700 dark:focus-within:ring-sky-400/20">
+            <span className="mr-1 text-lg font-semibold text-slate-500 dark:text-slate-400">¥</span>
             <input
               type="number"
               inputMode="decimal"
@@ -430,7 +430,7 @@ function BudgetSavingsTransferDialog({
                 setError('');
               }}
               placeholder="0.00"
-              className="min-w-0 flex-1 bg-transparent text-xl font-semibold text-slate-900 outline-none placeholder:text-slate-300"
+              className="min-w-0 flex-1 bg-transparent text-xl font-semibold text-slate-900 outline-none placeholder:text-slate-300 dark:text-slate-50 dark:placeholder:text-slate-500"
             />
             <button
               type="button"
@@ -438,7 +438,7 @@ function BudgetSavingsTransferDialog({
                 setAmount(String(maxAmount));
                 setError('');
               }}
-              className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-600"
+              className="rounded-lg bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-600 dark:bg-sky-400/10 dark:text-sky-300"
             >
               全部
             </button>
@@ -483,7 +483,7 @@ function BudgetSavingsTransferDialog({
                           ? <Landmark size={17} />
                           : <Icon name={destination.icon} size={17} />}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-left font-medium text-slate-700">
+                      <span className="min-w-0 flex-1 truncate text-left font-medium text-slate-700 dark:text-slate-200">
                         {destination.name}
                       </span>
                       <span className={`flex h-6 w-6 items-center justify-center rounded-full ${
@@ -501,10 +501,10 @@ function BudgetSavingsTransferDialog({
               type="button"
               aria-label="选择转入位置"
               aria-expanded={destinationOpen}
-              className={`flex min-h-14 w-full items-center gap-3 rounded-xl border bg-white px-3 text-left transition-all ${
+              className={`flex min-h-14 w-full items-center gap-3 rounded-xl border bg-white px-3 text-left transition-all dark:bg-slate-800 ${
                 destinationOpen
-                  ? 'border-sky-400 ring-4 ring-sky-100'
-                  : 'border-slate-200 active:bg-slate-50'
+                  ? 'border-sky-400 ring-4 ring-sky-100 dark:ring-sky-400/20'
+                  : 'border-slate-200 active:bg-slate-50 dark:border-slate-700 dark:active:bg-slate-700'
               }`}
             >
               <span
@@ -517,7 +517,7 @@ function BudgetSavingsTransferDialog({
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-[11px] font-medium text-slate-400">转入位置</span>
-                <span className="mt-0.5 block truncate text-sm font-semibold text-slate-800">
+                <span className="mt-0.5 block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                   {selectedDestination.name}
                 </span>
               </span>
@@ -529,23 +529,23 @@ function BudgetSavingsTransferDialog({
           </Popover>
         </div>
 
-        <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/70 px-3 py-3 text-sm">
+        <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/70 px-3 py-3 text-sm dark:border-sky-400/20 dark:bg-sky-400/10">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sky-900/65">转入后可分配</span>
-            <span className={`font-semibold ${projectedBalance >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
+            <span className="text-sky-900/65 dark:text-sky-200/70">转入后可分配</span>
+            <span className={`font-semibold ${projectedBalance >= 0 ? 'text-sky-700 dark:text-sky-300' : 'text-rose-600 dark:text-rose-400'}`}>
               {formatMoney(projectedBalance)}
             </span>
           </div>
         </div>
 
-        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
+        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">{error}</div>}
 
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600">取消</button>
+          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600 dark:bg-slate-700/60 dark:text-slate-300">取消</button>
           <button
             onClick={() => void handleSave()}
             disabled={!amountValid || saving}
-            className="min-h-12 rounded-xl bg-sky-500 font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400"
+            className="min-h-12 rounded-xl bg-sky-500 font-semibold text-white disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-slate-700"
           >
             {saving ? '转入中…' : '确认转入'}
           </button>
@@ -580,13 +580,13 @@ function PeriodNavigator({
         <ChevronLeft size={19} />
       </button>
       <div className="min-w-0 flex-1 text-center">
-        <div className="text-sm font-semibold text-slate-800">
+        <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
           {mode === 'month' ? `${year} 年 ${month} 月` : `${year} 年`}
         </div>
         <button
           onClick={onToday}
           disabled={isCurrentPeriod}
-          className={`mt-0.5 text-[11px] ${isCurrentPeriod ? 'text-slate-400' : 'font-medium text-amber-600'}`}
+          className={`mt-0.5 text-[11px] ${isCurrentPeriod ? 'text-slate-400' : 'font-medium text-amber-600 dark:text-amber-400'}`}
         >
           {isCurrentPeriod ? (mode === 'month' ? '本月' : '本年') : (mode === 'month' ? '回到本月' : '回到本年')}
         </button>
@@ -617,13 +617,13 @@ function YearBudgetView({
 
   return (
     <div>
-      <section className="mb-4 overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-5 shadow-[0_14px_34px_rgba(245,158,11,0.10)]">
+      <section className="mb-4 overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-5 shadow-[0_14px_34px_rgba(245,158,11,0.10)] dark:border-amber-400/20 dark:from-amber-400/15 dark:via-amber-400/5 dark:to-slate-800">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-medium text-amber-800/70">{year} 年预算总览</div>
-            <div className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{formatMoney(totalBudget)}</div>
+            <div className="text-xs font-medium text-amber-800/70 dark:text-amber-300/80">{year} 年预算总览</div>
+            <div className="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{formatMoney(totalBudget)}</div>
           </div>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/80 text-amber-600 shadow-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/80 text-amber-600 shadow-sm dark:bg-slate-700/60 dark:text-amber-300">
             <CalendarDays size={20} />
           </div>
         </div>
@@ -655,9 +655,9 @@ function YearBudgetView({
 
 function YearMetric({ label, value, danger = false }: { label: string; value: string; danger?: boolean }) {
   return (
-    <div className="rounded-xl border border-white/80 bg-white/70 px-2 py-2.5">
+    <div className="rounded-xl border border-white/80 bg-white/70 px-2 py-2.5 dark:border-slate-700/50 dark:bg-slate-800/60">
       <div className="text-[10px] text-slate-400">{label}</div>
-      <div className={`mt-1 truncate text-xs font-semibold ${danger ? 'text-rose-500' : 'text-slate-700'}`}>{value}</div>
+      <div className={`mt-1 truncate text-xs font-semibold ${danger ? 'text-rose-500 dark:text-rose-400' : 'text-slate-700 dark:text-slate-200'}`}>{value}</div>
     </div>
   );
 }
@@ -675,20 +675,20 @@ function YearMonthCard({
 }) {
   const usage = month.utilization === null ? 0 : Math.min(month.utilization, 100);
   const statusColor = month.status === 'overspent'
-    ? 'text-rose-500'
+    ? 'text-rose-500 dark:text-rose-400'
     : month.status === 'on-track'
-      ? 'text-emerald-600'
+      ? 'text-emerald-600 dark:text-emerald-400'
       : 'text-slate-400';
 
   return (
     <button
       onClick={onClick}
       className={`surface-card p-3.5 text-left transition-transform active:scale-[0.98] ${
-        isCurrent ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-slate-50' : ''
+        isCurrent ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-slate-50 dark:ring-offset-slate-800' : ''
       }`}
     >
       <div className="flex items-center justify-between gap-2">
-        <div className="font-semibold text-slate-800">{month.month} 月</div>
+        <div className="font-semibold text-slate-800 dark:text-slate-100">{month.month} 月</div>
         <div className={`text-[10px] font-medium ${statusColor}`}>
           {month.status === 'no-budget'
             ? '未设置'
@@ -697,19 +697,19 @@ function YearMonthCard({
               : `已用 ${formatPercentage(month.utilization ?? 0)}`}
         </div>
       </div>
-      <div className="mt-2 text-sm font-semibold text-slate-700">{formatMoney(month.budgetAmount)}</div>
+      <div className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">{formatMoney(month.budgetAmount)}</div>
       <div className="mt-1 text-[11px] text-slate-400">
         支出 {formatMoney(month.spentAmount)}{month.savedAmount > 0 ? ` · 已存 ${formatMoney(month.savedAmount)}` : ''}
         {month.supplementAmount > 0 ? ` · 划入 ${formatMoney(month.supplementAmount)}` : ''}
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/60">
         <div
           className={`h-full rounded-full ${month.status === 'overspent' ? 'bg-rose-500' : 'bg-emerald-500'}`}
           style={{ width: `${usage}%` }}
         />
       </div>
       {!isFuture && month.budgetChanges.length > 0 && (
-        <div className="mt-2 text-[10px] font-medium text-amber-600">较上月调整 {month.budgetChanges.length} 项</div>
+        <div className="mt-2 text-[10px] font-medium text-amber-600 dark:text-amber-400">较上月调整 {month.budgetChanges.length} 项</div>
       )}
     </button>
   );
@@ -744,7 +744,7 @@ function BudgetBalanceCard({
     <div className="surface-card mt-4 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-400/10 dark:text-amber-300">
             <WalletCards size={20} />
           </div>
           <div>
@@ -753,7 +753,7 @@ function BudgetBalanceCard({
           </div>
         </div>
         {hasOverallBudget ? (
-          <div className={`text-right font-semibold ${summary.balanceAmount >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+          <div className={`text-right font-semibold ${summary.balanceAmount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
             {formatMoney(summary.balanceAmount)}
           </div>
         ) : (
@@ -762,17 +762,17 @@ function BudgetBalanceCard({
       </div>
 
       {hasOverallBudget && occupiedByOverspend > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-          <span className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-rose-600">
+        <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <span className="rounded-lg bg-rose-50 px-2.5 py-1.5 text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">
             超额占用 {formatMoney(occupiedByOverspend)}
           </span>
         </div>
       )}
       {hasOverallBudget && summary.reservedAmount > 0 && (
-        <div className="mt-3 text-xs text-amber-700">本月已转入结余 {formatMoney(summary.reservedAmount)}</div>
+        <div className="mt-3 text-xs text-amber-700 dark:text-amber-300">本月已转入结余 {formatMoney(summary.reservedAmount)}</div>
       )}
       {hasOverallBudget && summary.supplementAmount > 0 && (
-        <div className="mt-2 text-xs text-emerald-700">本月从攒钱划入 +{formatMoney(summary.supplementAmount)}</div>
+        <div className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">本月从攒钱划入 +{formatMoney(summary.supplementAmount)}</div>
       )}
     </div>
   );
@@ -807,15 +807,15 @@ function SavingsAllocationCard({
           >
             <Icon name={icon} size={16} />
           </span>
-          <span className="truncate font-medium text-slate-800">{name}</span>
-          <span className="truncate text-sm font-semibold text-slate-500">{formatMoney(amount)}</span>
+          <span className="truncate font-medium text-slate-800 dark:text-slate-100">{name}</span>
+          <span className="truncate text-sm font-semibold text-slate-500 dark:text-slate-400">{formatMoney(amount)}</span>
         </div>
         {share !== null && (
           <span className="shrink-0 text-sm font-semibold" style={{ color }}>{formatPercentage(share)}</span>
         )}
       </div>
       {progress !== null && (
-        <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100">
+        <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700/60">
           <div
             className="h-full rounded-full"
             style={{ width: `${progress}%`, backgroundColor: color }}
@@ -823,7 +823,7 @@ function SavingsAllocationCard({
         </div>
       )}
       <div className="flex items-center justify-between gap-3 text-sm">
-        <span className="text-slate-500">本月从预算转入 {formatMoney(amount)}</span>
+        <span className="text-slate-500 dark:text-slate-400">本月从预算转入 {formatMoney(amount)}</span>
         <span style={{ color }}>不计入消费</span>
       </div>
     </div>
@@ -863,48 +863,48 @@ function BudgetCard({
     return (
       <button
         onClick={onClick}
-        className="relative w-full overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-5 text-left shadow-[0_16px_38px_rgba(245,158,11,0.13)] active:scale-[0.995]"
+        className="relative w-full overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-5 text-left shadow-[0_16px_38px_rgba(245,158,11,0.13)] active:scale-[0.995] dark:border-amber-400/20 dark:from-amber-400/15 dark:via-amber-400/5 dark:to-slate-800"
       >
-        <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-amber-200/35 blur-2xl" />
+        <span className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-amber-200/35 blur-2xl dark:bg-amber-400/10" />
         <div className="relative flex items-start justify-between gap-3">
           <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800/70">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800/70 dark:text-amber-300/80">
               <WalletCards size={15} /> {Number(budget.yearMonth.slice(5))} 月总预算
             </div>
-            <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">{formatMoney(effectiveBudgetAmount)}</div>
+            <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{formatMoney(effectiveBudgetAmount)}</div>
           </div>
-          <span className={`rounded-full bg-white/75 px-2.5 py-1 text-xs font-semibold shadow-sm ${
-            plannedProgress >= 100 ? 'text-rose-600' : 'text-amber-800'
+          <span className={`rounded-full bg-white/75 px-2.5 py-1 text-xs font-semibold shadow-sm dark:bg-slate-800/80 ${
+            plannedProgress >= 100 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-800 dark:text-amber-300'
           }`}>
             {formatPercentage(plannedProgress)} 已规划
           </span>
         </div>
 
-        <div className="relative mt-4 h-2 overflow-hidden rounded-full bg-white/80">
+        <div className="relative mt-4 h-2 overflow-hidden rounded-full bg-white/80 dark:bg-slate-700/60">
           <div
             className={`h-full rounded-full ${plannedProgress >= 100 ? 'bg-rose-500' : 'bg-amber-400'}`}
             style={{ width: `${plannedProgress}%` }}
           />
         </div>
 
-        <div className="relative mt-4 divide-y divide-white/80 overflow-hidden rounded-xl border border-white/80 bg-white/65 px-3">
+        <div className="relative mt-4 divide-y divide-white/80 overflow-hidden rounded-xl border border-white/80 bg-white/65 px-3 dark:divide-slate-700/50 dark:border-slate-700/50 dark:bg-slate-800/70">
           <div className="flex items-center justify-between py-2.5 text-xs">
-            <span className="text-slate-500">分类预算</span>
-            <span className="font-semibold text-rose-500">{formatMoney(categoryAllocated)}</span>
+            <span className="text-slate-500 dark:text-slate-400">分类预算</span>
+            <span className="font-semibold text-rose-500 dark:text-rose-400">{formatMoney(categoryAllocated)}</span>
           </div>
           {budgetSupplement > 0 && (
             <div className="flex items-center justify-between py-2.5 text-xs">
-              <span className="text-slate-500">攒钱划入</span>
-              <span className="font-semibold text-emerald-600">+{formatMoney(budgetSupplement)}</span>
+              <span className="text-slate-500 dark:text-slate-400">攒钱划入</span>
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">+{formatMoney(budgetSupplement)}</span>
             </div>
           )}
           <div className="flex items-center justify-between py-2.5 text-xs">
-            <span className="text-slate-500">攒钱计划</span>
-            <span className="font-semibold text-sky-600">{formatMoney(reserved)}</span>
+            <span className="text-slate-500 dark:text-slate-400">攒钱计划</span>
+            <span className="font-semibold text-sky-600 dark:text-sky-400">{formatMoney(reserved)}</span>
           </div>
           <div className="flex items-center justify-between py-2.5 text-xs">
-            <span className="text-slate-500">可分配</span>
-            <span className={`font-semibold ${availableToAllocate >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            <span className="text-slate-500 dark:text-slate-400">可分配</span>
+            <span className={`font-semibold ${availableToAllocate >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
               {formatMoney(availableToAllocate)}
             </span>
           </div>
@@ -916,7 +916,7 @@ function BudgetCard({
   return (
     <button
       onClick={onClick}
-      className="surface-card w-full p-4 text-left active:bg-slate-50"
+      className="surface-card w-full p-4 text-left active:bg-slate-50 dark:active:bg-slate-800"
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
@@ -933,14 +933,14 @@ function BudgetCard({
           ) : (
             <span className="font-medium">{Number(budget.yearMonth.slice(5))} 月总预算</span>
           )}
-          <span className="text-sm font-semibold text-slate-500">{formatMoney(budget.amount)}</span>
+          <span className="text-sm font-semibold text-slate-500 dark:text-slate-400">{formatMoney(budget.amount)}</span>
         </div>
-        <span className={`text-sm font-semibold ${progress >= 100 ? 'text-red-500' : 'text-gray-600'}`}>
+        <span className={`text-sm font-semibold ${progress >= 100 ? 'text-red-500 dark:text-red-400' : 'text-gray-600 dark:text-slate-300'}`}>
           {formatPercentage(progress)}
         </span>
       </div>
 
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-3">
+      <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-3 dark:bg-slate-700/60">
         <div
           className={`h-full rounded-full ${
             progress >= 100 ? 'bg-red-500' : progress >= 80 ? 'bg-yellow-500' : 'bg-green-500'
@@ -950,10 +950,10 @@ function BudgetCard({
       </div>
 
       <div className="flex justify-between text-sm">
-        <span className="text-gray-500">
+        <span className="text-gray-500 dark:text-slate-400">
           已用 {formatMoney(spent)}{reserved > 0 ? ` · 已存 ${formatMoney(reserved)}` : ''}
         </span>
-        <span className={remaining >= 0 ? 'text-green-600' : 'text-red-500'}>
+        <span className={remaining >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}>
           剩余 {formatMoney(remaining)}
         </span>
       </div>
@@ -1047,7 +1047,7 @@ function BudgetForm({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm p-4 dark:bg-slate-800">
         <div className="font-medium text-center mb-4">
           {budget ? '编辑' : '新增'}{isOverall ? '总预算' : '分类预算'}
         </div>
@@ -1057,7 +1057,7 @@ function BudgetForm({
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="预算金额"
-          className="w-full p-3 border border-gray-200 rounded-lg mb-4"
+          className="w-full p-3 border border-gray-200 rounded-lg mb-4 dark:border-slate-700 dark:text-slate-50 dark:placeholder:text-slate-500"
         />
 
         {!isOverall && (
@@ -1099,7 +1099,7 @@ function BudgetForm({
                         >
                           <Icon name={category.icon} size={17} />
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-left font-medium text-slate-700">
+                        <span className="min-w-0 flex-1 truncate text-left font-medium text-slate-700 dark:text-slate-200">
                           {category.name}
                         </span>
                         <span className={`flex h-6 w-6 items-center justify-center rounded-full ${
@@ -1117,10 +1117,10 @@ function BudgetForm({
                 type="button"
                 aria-label="选择预算分类"
                 aria-expanded={categorySelectOpen}
-                className={`mb-3 flex min-h-14 w-full items-center gap-3 rounded-xl border bg-white px-3 text-left transition-all ${
+                className={`mb-3 flex min-h-14 w-full items-center gap-3 rounded-xl border bg-white px-3 text-left transition-all dark:bg-slate-800 ${
                   categorySelectOpen
-                    ? 'border-amber-400 ring-4 ring-amber-100'
-                    : 'border-slate-200 active:bg-slate-50'
+                    ? 'border-amber-400 ring-4 ring-amber-100 dark:ring-amber-400/20'
+                    : 'border-slate-200 active:bg-slate-50 dark:border-slate-700 dark:active:bg-slate-700'
                 }`}
               >
                 {selectedCategory && (
@@ -1133,7 +1133,7 @@ function BudgetForm({
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="block text-[11px] font-medium text-slate-400">预算分类</span>
-                  <span className="mt-0.5 block truncate text-sm font-semibold text-slate-800">
+                  <span className="mt-0.5 block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                     {selectedCategory?.name || '请选择分类'}
                   </span>
                 </span>
@@ -1144,16 +1144,16 @@ function BudgetForm({
               </button>
             </Popover>
 
-            <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
+            <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/70 p-3 dark:border-amber-400/20 dark:bg-amber-400/10">
               <div className="flex items-center justify-between gap-3 text-sm">
-                <span className="text-amber-900/70">当前预算结余</span>
-                <span className={`font-semibold ${currentAllocationSummary.balanceAmount >= 0 ? 'text-amber-900' : 'text-rose-600'}`}>
+                <span className="text-amber-900/70 dark:text-amber-200/80">当前预算结余</span>
+                <span className={`font-semibold ${currentAllocationSummary.balanceAmount >= 0 ? 'text-amber-900 dark:text-amber-200' : 'text-rose-600 dark:text-rose-400'}`}>
                   {formatMoney(currentAllocationSummary.balanceAmount)}
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3 border-t border-amber-200/60 pt-2 text-sm">
-                <span className="text-amber-900/70">保存后结余</span>
-                <span className={`font-semibold ${projectedBalance === null || projectedBalance >= 0 ? 'text-amber-900' : 'text-rose-600'}`}>
+              <div className="mt-2 flex items-center justify-between gap-3 border-t border-amber-200/60 pt-2 text-sm dark:border-amber-400/20">
+                <span className="text-amber-900/70 dark:text-amber-200/80">保存后结余</span>
+                <span className={`font-semibold ${projectedBalance === null || projectedBalance >= 0 ? 'text-amber-900 dark:text-amber-200' : 'text-rose-600 dark:text-rose-400'}`}>
                   {projectedBalance === null ? '输入金额后计算' : formatMoney(projectedBalance)}
                 </span>
               </div>
@@ -1162,11 +1162,11 @@ function BudgetForm({
         )}
 
         <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 rounded-xl">取消</button>
+          <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 rounded-xl dark:bg-slate-700/60 dark:text-slate-200">取消</button>
           {onDelete && (
-            <button onClick={() => void onDelete()} className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl">删除</button>
+            <button onClick={() => void onDelete()} className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl dark:bg-rose-400/10 dark:text-rose-300">删除</button>
           )}
-          <button onClick={handleSave} className="flex-1 py-3 bg-primary rounded-xl font-medium">保存</button>
+          <button onClick={handleSave} className="flex-1 py-3 bg-primary rounded-xl font-medium text-slate-900">保存</button>
         </div>
       </div>
     </div>

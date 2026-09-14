@@ -58,17 +58,17 @@ export default function CategoryPage({ onClose }: CategoryPageProps) {
   return (
     <div className="mobile-overlay">
       <div className="mobile-toolbar">
-        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600"><X size={20} /></button>
+        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600 dark:text-slate-300"><X size={20} /></button>
         <div className="font-semibold">分类管理</div>
-        <button aria-label="新增分类" onClick={() => setShowForm(true)} className="icon-button"><Plus size={22} className="text-amber-700" /></button>
+        <button aria-label="新增分类" onClick={() => setShowForm(true)} className="icon-button"><Plus size={22} className="text-amber-700 dark:text-amber-300" /></button>
       </div>
 
-      <div className="m-4 flex rounded-xl bg-slate-200/60 p-1">
+      <div className="m-4 flex rounded-xl bg-slate-200/60 p-1 dark:bg-slate-600/60">
         {(['expense', 'income'] as const).map((categoryType) => (
           <button
             key={categoryType}
             onClick={() => setType(categoryType)}
-            className={`min-h-11 flex-1 rounded-lg text-sm font-medium ${type === categoryType ? 'bg-white shadow-sm' : 'text-slate-500'}`}
+            className={`min-h-11 flex-1 rounded-lg text-sm font-medium ${type === categoryType ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 dark:text-slate-400'}`}
           >
             {categoryType === 'expense' ? '支出' : '收入'}
           </button>
@@ -81,7 +81,7 @@ export default function CategoryPage({ onClose }: CategoryPageProps) {
             <button
               key={category.id}
               onClick={() => setEditingCategory(category)}
-              className="surface-card flex min-h-16 w-full items-center gap-3 p-3 text-left active:bg-slate-50"
+              className="surface-card flex min-h-16 w-full items-center gap-3 p-3 text-left active:bg-slate-50 dark:active:bg-slate-800"
             >
               <span
                 className="flex h-10 w-10 items-center justify-center rounded-xl text-white"
@@ -89,8 +89,8 @@ export default function CategoryPage({ onClose }: CategoryPageProps) {
               >
                 <Icon name={category.icon} size={18} />
               </span>
-              <span className="min-w-0 flex-1 truncate font-medium text-slate-800">{category.name}</span>
-              {category.isBuiltIn && <span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-400">内置</span>}
+              <span className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-slate-100">{category.name}</span>
+              {category.isBuiltIn && <span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-400 dark:bg-slate-700/60">内置</span>}
               <ChevronRight size={18} className="text-slate-300" />
             </button>
           ))}

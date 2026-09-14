@@ -18,6 +18,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { calculateMonthlyBudgetAvailability, calculateReserveBalances, getSavingsPlanProgress } from '../domain/reserveLedger';
 import { formatMoney, formatPercentage, generateId, getYearMonth } from '../utils/helpers';
+import { useIsDark } from '../theme';
 import type { ReserveEntry, SavingsPlan } from '../types';
 import { Icon } from './Icon';
 
@@ -53,6 +54,7 @@ export default function ReserveCenter({
   const [targetAmount, setTargetAmount] = useState('');
   const [planColor, setPlanColor] = useState(PLAN_COLORS[0]);
   const [error, setError] = useState('');
+  const isDark = useIsDark();
 
   const activePlans = useMemo(
     () => savingsPlans.filter((plan) => !plan.archivedAt),
@@ -310,27 +312,27 @@ export default function ReserveCenter({
   return (
     <>
       {!standalone && (
-      <section className="mb-5 overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-4 shadow-[0_14px_34px_rgba(245,158,11,0.10)]">
+      <section className="mb-5 overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-100 via-amber-50 to-white p-4 shadow-[0_14px_34px_rgba(245,158,11,0.10)] dark:border-amber-400/20 dark:from-amber-400/15 dark:via-amber-400/5 dark:to-slate-800">
         <button onClick={() => setManagerOpen(true)} className="w-full text-left">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800/70">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-800/70 dark:text-amber-300/80">
                 <Sparkles size={14} /> 我的总结余
               </div>
-              <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">{formatMoney(balances.total)}</div>
+              <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">{formatMoney(balances.total)}</div>
             </div>
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-amber-600 shadow-sm">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/80 text-amber-600 shadow-sm dark:bg-slate-700/60 dark:text-amber-300">
               <ChevronRight size={19} />
             </span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <div className="rounded-xl border border-white/80 bg-white/70 px-3 py-2.5">
+            <div className="rounded-xl border border-white/80 bg-white/70 px-3 py-2.5 dark:border-slate-700/50 dark:bg-slate-800/60">
               <div className="text-[11px] text-slate-400">通用结余池</div>
-              <div className="mt-1 text-sm font-semibold text-slate-700">{formatMoney(balances.general)}</div>
+              <div className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{formatMoney(balances.general)}</div>
             </div>
-            <div className="rounded-xl border border-white/80 bg-white/70 px-3 py-2.5">
+            <div className="rounded-xl border border-white/80 bg-white/70 px-3 py-2.5 dark:border-slate-700/50 dark:bg-slate-800/60">
               <div className="text-[11px] text-slate-400">攒钱计划</div>
-              <div className="mt-1 text-sm font-semibold text-slate-700">{activePlans.length} 个</div>
+              <div className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{activePlans.length} 个</div>
             </div>
           </div>
         </button>
@@ -339,7 +341,7 @@ export default function ReserveCenter({
             <button
               onClick={() => openMonthTransfer('all')}
               disabled={!canTransferMonth}
-              className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-amber-400 px-2 text-xs font-semibold text-amber-950 disabled:bg-white/60 disabled:text-slate-400"
+              className="flex min-h-12 min-w-0 items-center justify-center gap-1.5 rounded-xl bg-amber-400 px-2 text-xs font-semibold text-amber-950 disabled:bg-white/60 disabled:text-slate-400 dark:disabled:bg-slate-700/60"
             >
               <ArrowDownToLine size={16} className="shrink-0" />
               <span className="truncate">
@@ -351,7 +353,7 @@ export default function ReserveCenter({
             <button
               onClick={() => openMonthTransfer('custom')}
               disabled={!canTransferMonth}
-              className="min-h-12 rounded-xl border border-amber-200 bg-white/75 px-2 text-xs font-semibold text-amber-800 active:bg-white disabled:border-white/60 disabled:text-slate-400"
+              className="min-h-12 rounded-xl border border-amber-200 bg-white/75 px-2 text-xs font-semibold text-amber-800 active:bg-white disabled:border-white/60 disabled:text-slate-400 dark:border-amber-400/30 dark:bg-slate-800/70 dark:text-amber-300 dark:active:bg-slate-700 dark:disabled:border-slate-700"
             >
               自定义转入
             </button>
@@ -367,7 +369,7 @@ export default function ReserveCenter({
               <ArrowLeft size={21} />
             </button>
             <div className="font-semibold">攒钱</div>
-            <button onClick={openCreatePlan} className="icon-button text-amber-700" aria-label="新建攒钱计划">
+            <button onClick={openCreatePlan} className="icon-button text-amber-700 dark:text-amber-300" aria-label="新建攒钱计划">
               <Plus size={21} />
             </button>
           </div>
@@ -390,18 +392,18 @@ export default function ReserveCenter({
             </section>
 
             <div className="mb-2 mt-6 flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-800">攒钱计划</div>
-              <button onClick={openCreatePlan} className="text-xs font-semibold text-amber-700">+ 新建计划</button>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">攒钱计划</div>
+              <button onClick={openCreatePlan} className="text-xs font-semibold text-amber-700 dark:text-amber-300">+ 新建计划</button>
             </div>
             {activePlans.length === 0 ? (
               <button
                 onClick={openCreatePlan}
                 className="surface-card flex w-full flex-col items-center border-dashed px-4 py-8 text-center"
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-400/10 dark:text-amber-300">
                   <Target size={22} />
                 </span>
-                <span className="mt-3 text-sm font-semibold text-slate-700">给结余一个去处</span>
+                <span className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-200">给结余一个去处</span>
                 <span className="mt-1 text-xs text-slate-400">旅行、养猫或任何想慢慢实现的事</span>
               </button>
             ) : (
@@ -415,7 +417,10 @@ export default function ReserveCenter({
                       className="relative overflow-hidden rounded-[1.5rem] border p-4 shadow-[0_14px_34px_rgba(15,23,42,0.07)]"
                       style={{
                         borderColor: `${plan.color}2E`,
-                        background: `linear-gradient(145deg, ${plan.color}18 0%, #FFFFFF 54%, #FFFFFF 100%)`,
+                        // 计划卡底色随主题切换，深色下不再是一张突兀的亮白卡片。
+                        background: isDark
+                          ? `linear-gradient(145deg, ${plan.color}26 0%, #1a2436 54%, #1a2436 100%)`
+                          : `linear-gradient(145deg, ${plan.color}18 0%, #FFFFFF 54%, #FFFFFF 100%)`,
                       }}
                     >
                       <div
@@ -431,15 +436,15 @@ export default function ReserveCenter({
                             <Icon name={plan.icon} size={23} />
                           </span>
                           <span className="min-w-0 flex-1 pt-0.5">
-                            <span className="block truncate text-base font-bold text-slate-900">{plan.name}</span>
-                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-white/75 px-2 py-1 text-[11px] font-semibold shadow-sm" style={{ color: plan.color }}>
+                            <span className="block truncate text-base font-bold text-slate-900 dark:text-slate-50">{plan.name}</span>
+                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-white/75 px-2 py-1 text-[11px] font-semibold shadow-sm dark:bg-slate-700/70" style={{ color: plan.color }}>
                               <Target size={12} />
                               {progress?.completed ? '目标已达成' : '目标进行中'}
                             </span>
                           </span>
                           <button
                             onClick={() => openPlanEditor(plan)}
-                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/75 text-slate-500 shadow-sm active:bg-white"
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/80 bg-white/75 text-slate-500 shadow-sm active:bg-white dark:border-slate-600 dark:bg-slate-700/70 dark:text-slate-300 dark:active:bg-slate-700"
                             aria-label={`编辑${plan.name}`}
                           >
                             <Pencil size={15} />
@@ -448,7 +453,7 @@ export default function ReserveCenter({
 
                         <div className="mt-5">
                           <div className="text-[11px] font-medium text-slate-400">已经攒下</div>
-                          <div className="mt-0.5 text-[1.75rem] font-bold tracking-tight text-slate-950">{formatMoney(balance)}</div>
+                          <div className="mt-0.5 text-[1.75rem] font-bold tracking-tight text-slate-950 dark:text-slate-50">{formatMoney(balance)}</div>
                         </div>
 
                         {plan.targetAmount && progress ? (
@@ -457,7 +462,7 @@ export default function ReserveCenter({
                               <span className="font-semibold" style={{ color: plan.color }}>
                                 已完成 {formatPercentage(progress.percentage)}
                               </span>
-                              <span className="text-slate-500">
+                              <span className="text-slate-500 dark:text-slate-400">
                                 {progress.completed ? '目标达成啦' : `还差 ${formatMoney(progress.remainingAmount)}`}
                               </span>
                             </div>
@@ -472,7 +477,7 @@ export default function ReserveCenter({
                             </div>
                           </div>
                         ) : (
-                          <div className="mt-4 rounded-xl bg-white/70 px-3 py-2.5 text-xs text-slate-500">
+                          <div className="mt-4 rounded-xl bg-white/70 px-3 py-2.5 text-xs text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">
                             自由积累，不设金额上限
                           </div>
                         )}
@@ -481,7 +486,7 @@ export default function ReserveCenter({
                           <button
                             onClick={() => openPlanTransfer(plan.id)}
                             disabled={balances.general <= 0}
-                            className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-semibold text-white shadow-sm active:scale-[0.995] disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+                            className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-semibold text-white shadow-sm active:scale-[0.995] disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none dark:disabled:bg-slate-700"
                             style={balances.general > 0 ? { backgroundColor: plan.color } : undefined}
                           >
                             <ArrowUpRight size={16} />
@@ -490,7 +495,7 @@ export default function ReserveCenter({
                           <button
                             onClick={() => openBudgetWithdrawal(plan.id)}
                             disabled={balance <= 0 || !hasCurrentOverallBudget}
-                            className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border bg-white/80 px-2 text-xs font-semibold shadow-sm active:scale-[0.995] disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-300"
+                            className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl border bg-white/80 px-2 text-xs font-semibold shadow-sm active:scale-[0.995] disabled:border-slate-100 disabled:bg-slate-100 disabled:text-slate-300 dark:bg-slate-700/50 dark:disabled:border-slate-700 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                             style={balance > 0 && hasCurrentOverallBudget ? { borderColor: `${plan.color}45`, color: plan.color } : undefined}
                           >
                             <ArrowDownLeft size={16} />
@@ -506,8 +511,8 @@ export default function ReserveCenter({
 
             {reserveEntries.length > 0 && (
               <>
-                <div className="mb-2 mt-6 text-sm font-semibold text-slate-800">最近变动</div>
-                <div className="surface-card divide-y divide-slate-100 px-4">
+                <div className="mb-2 mt-6 text-sm font-semibold text-slate-800 dark:text-slate-100">最近变动</div>
+                <div className="surface-card divide-y divide-slate-100 px-4 dark:divide-slate-700/50">
                   {reserveEntries.slice(0, 8).map((entry) => (
                     <ReserveHistoryItem key={entry.id} entry={entry} plans={savingsPlans} />
                   ))}
@@ -594,8 +599,8 @@ export default function ReserveCenter({
 
       {dialog === 'plan' && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4">
-          <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
-            <div className="text-center font-semibold text-slate-900">
+          <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl dark:bg-slate-800">
+            <div className="text-center font-semibold text-slate-900 dark:text-slate-50">
               {editingPlan ? '编辑攒钱计划' : '新建攒钱计划'}
             </div>
             <input
@@ -605,7 +610,7 @@ export default function ReserveCenter({
                 setError('');
               }}
               placeholder="例如：带小猫去旅行"
-              className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+              className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 dark:border-slate-700 dark:focus:ring-amber-400/20"
             />
             <input
               type="number"
@@ -615,23 +620,23 @@ export default function ReserveCenter({
                 setError('');
               }}
               placeholder="目标金额（可不填）"
-              className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+              className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 dark:border-slate-700 dark:focus:ring-amber-400/20"
             />
-            <div className="mt-4 text-xs font-medium text-slate-500">选一个心情色</div>
+            <div className="mt-4 text-xs font-medium text-slate-500 dark:text-slate-400">选一个心情色</div>
             <div className="mt-2 flex gap-3">
               {PLAN_COLORS.map((color) => (
                 <button
                   key={color}
                   onClick={() => setPlanColor(color)}
-                  className={`h-9 w-9 rounded-full border-4 ${planColor === color ? 'border-slate-200' : 'border-white'}`}
+                  className={`h-9 w-9 rounded-full border-4 ${planColor === color ? 'border-slate-200 dark:border-slate-600' : 'border-white dark:border-slate-800'}`}
                   style={{ backgroundColor: color }}
                   aria-label={`选择颜色 ${color}`}
                 />
               ))}
             </div>
-            {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
+            {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">{error}</div>}
             <div className="mt-5 grid grid-cols-2 gap-3">
-              <button onClick={resetDialog} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600">取消</button>
+              <button onClick={resetDialog} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600 dark:bg-slate-700/60 dark:text-slate-300">取消</button>
               <button onClick={() => void savePlanDetails()} className="min-h-12 rounded-xl bg-amber-400 font-semibold text-amber-950">
                 {editingPlan ? '保存' : '创建'}
               </button>
@@ -643,7 +648,7 @@ export default function ReserveCenter({
                   setError('');
                   setDialog('delete-plan');
                 }}
-                className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium text-rose-500 active:bg-rose-50"
+                className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-medium text-rose-500 active:bg-rose-50 dark:text-rose-400 dark:active:bg-rose-400/10"
               >
                 <Trash2 size={16} /> 删除计划
               </button>
@@ -688,18 +693,18 @@ function ConfirmAllTransferDialog({
 }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4">
-      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
-        <div className="text-center font-semibold text-slate-900">全部转入通用结余池</div>
-        <div className="mt-4 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 p-4 text-center">
-          <div className="text-xs font-medium text-amber-800/70">{month} 月当前可转结余</div>
-          <div className="mt-1 text-3xl font-bold tracking-tight text-amber-950">{formatMoney(amount)}</div>
+      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl dark:bg-slate-800">
+        <div className="text-center font-semibold text-slate-900 dark:text-slate-50">全部转入通用结余池</div>
+        <div className="mt-4 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 p-4 text-center dark:from-amber-400/15 dark:to-amber-400/5">
+          <div className="text-xs font-medium text-amber-800/70 dark:text-amber-300/80">{month} 月当前可转结余</div>
+          <div className="mt-1 text-3xl font-bold tracking-tight text-amber-950 dark:text-amber-200">{formatMoney(amount)}</div>
         </div>
         <div className="mt-3 text-xs leading-5 text-slate-400">
           确认后，这笔金额会计入本月“结余预算”，并同步减少本月可用预算。
         </div>
-        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
+        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">{error}</div>}
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600">取消</button>
+          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600 dark:bg-slate-700/60 dark:text-slate-300">取消</button>
           <button onClick={onConfirm} className="min-h-12 rounded-xl bg-amber-400 font-semibold text-amber-950">全部转入</button>
         </div>
       </div>
@@ -730,26 +735,26 @@ function AmountDialog({
 }) {
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4">
-      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
-        <div className="text-center font-semibold text-slate-900">{title}</div>
-        <div className="mt-4 rounded-2xl bg-amber-50 p-4">
-          <div className="text-xs font-medium text-amber-800/70">{amountLabel}</div>
+      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl dark:bg-slate-800">
+        <div className="text-center font-semibold text-slate-900 dark:text-slate-50">{title}</div>
+        <div className="mt-4 rounded-2xl bg-amber-50 p-4 dark:bg-amber-400/10">
+          <div className="text-xs font-medium text-amber-800/70 dark:text-amber-300/80">{amountLabel}</div>
           <div className="mt-1 flex items-center gap-2">
-            <span className="text-2xl font-bold text-amber-900">¥</span>
+            <span className="text-2xl font-bold text-amber-900 dark:text-amber-200">¥</span>
             <input
               autoFocus
               type="number"
               value={amount}
               onChange={(event) => onAmountChange(event.target.value)}
-              className="min-w-0 flex-1 bg-transparent text-3xl font-bold text-amber-950 outline-none"
+              className="min-w-0 flex-1 bg-transparent text-3xl font-bold text-amber-950 outline-none dark:text-amber-100"
               placeholder="0.00"
             />
           </div>
         </div>
         <div className="mt-3 text-xs leading-5 text-slate-400">{hint}</div>
-        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
+        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">{error}</div>}
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600">取消</button>
+          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600 dark:bg-slate-700/60 dark:text-slate-300">取消</button>
           <button onClick={onConfirm} className="min-h-12 rounded-xl bg-amber-400 font-semibold text-amber-950">{confirmLabel}</button>
         </div>
       </div>
@@ -798,8 +803,8 @@ function DeletePlanDialog({
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 p-4">
-      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl">
-        <div className="text-center font-semibold text-slate-900">删除「{plan.name}」？</div>
+      <div className="w-full max-w-sm rounded-[1.5rem] bg-white p-4 shadow-2xl dark:bg-slate-800">
+        <div className="text-center font-semibold text-slate-900 dark:text-slate-50">删除「{plan.name}」？</div>
         {balance > 0 ? (
           <>
             <div className="mt-2 text-center text-xs leading-5 text-slate-400">
@@ -813,20 +818,20 @@ function DeletePlanDialog({
                     key={destination.key}
                     onClick={() => onDestinationChange(destination.key)}
                     className={`flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 text-left ${
-                      selected ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
+                      selected ? 'border-amber-300 bg-amber-50 dark:border-amber-400/40 dark:bg-amber-400/10' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
                     }`}
                   >
                     <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                      selected ? 'bg-amber-400 text-amber-950' : 'bg-slate-100 text-slate-500'
+                      selected ? 'bg-amber-400 text-amber-950' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'
                     }`}>
                       {destination.icon}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-slate-800">{destination.name}</span>
+                      <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{destination.name}</span>
                       <span className="mt-0.5 block text-[11px] text-slate-400">{destination.description}</span>
                     </span>
                     <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                      selected ? 'bg-amber-400 text-amber-950' : 'border border-slate-200 text-transparent'
+                      selected ? 'bg-amber-400 text-amber-950' : 'border border-slate-200 text-transparent dark:border-slate-700'
                     }`}>
                       <Check size={14} strokeWidth={3} />
                     </span>
@@ -836,13 +841,13 @@ function DeletePlanDialog({
             </div>
           </>
         ) : (
-          <div className="mt-4 rounded-xl bg-slate-50 px-3 py-3 text-center text-sm text-slate-500">
+          <div className="mt-4 rounded-xl bg-slate-50 px-3 py-3 text-center text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
             计划余额为零，可以直接删除。历史流水仍会保留计划名称。
           </div>
         )}
-        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{error}</div>}
+        {error && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">{error}</div>}
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600">取消</button>
+          <button onClick={onCancel} className="min-h-12 rounded-xl bg-slate-100 font-medium text-slate-600 dark:bg-slate-700/60 dark:text-slate-300">取消</button>
           <button onClick={onConfirm} className="min-h-12 rounded-xl bg-rose-500 font-semibold text-white">
             {balance > 0 ? '转移并删除' : '确认删除'}
           </button>
@@ -865,7 +870,7 @@ function ReserveHistoryItem({ entry, plans }: { entry: ReserveEntry; plans: Savi
       : plans.find((plan) => plan.id === entry.sourcePlanId)?.name ?? '已归档计划';
   return (
     <div className="flex items-center gap-3 py-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600 dark:bg-amber-400/10 dark:text-amber-300">
         {entry.targetType === 'general'
           ? <Landmark size={17} />
           : entry.targetType === 'budget'
@@ -873,12 +878,12 @@ function ReserveHistoryItem({ entry, plans }: { entry: ReserveEntry; plans: Savi
             : <PiggyBank size={17} />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-slate-700">{source} → {target}</span>
+        <span className="block truncate text-sm font-medium text-slate-700 dark:text-slate-200">{source} → {target}</span>
         <span className="mt-0.5 block text-[11px] text-slate-400">
           {new Date(entry.occurredAt).toLocaleDateString('zh-CN')} · {entry.note}
         </span>
       </span>
-      <span className="text-sm font-semibold text-slate-700">{formatMoney(entry.amount)}</span>
+      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{formatMoney(entry.amount)}</span>
     </div>
   );
 }

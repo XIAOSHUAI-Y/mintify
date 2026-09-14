@@ -13,6 +13,92 @@
   background: #eef1f5;
 }
 
+/* 深色模式：共享组件类统一切换，组件内只需处理 Tailwind 工具类的 dark: 变体。 */
+:root.dark:root {
+  --adm-color-text: #e2e8f0;
+  --adm-color-weak: #94a3b8;
+  --adm-color-light: #64748b;
+  --adm-color-border: #334155;
+  --adm-color-box: #1e293b;
+  --adm-color-background: #0f172a;
+  color: #e2e8f0;
+  background: #0b1120;
+}
+
+.dark body {
+  background-color: #0b1120;
+}
+
+.dark #root {
+  background-color: #0f172a;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.45);
+}
+
+.dark .surface-card {
+  border-color: #263145;
+  background: #1a2436;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.dark .mobile-overlay {
+  background: #0f172a;
+}
+
+.dark .mobile-toolbar {
+  border-bottom-color: #1e293b;
+  background: rgba(15, 23, 42, 0.94);
+  color: #e2e8f0;
+}
+
+.dark .bottom-sheet {
+  background: #1a2436;
+  color: #e2e8f0;
+}
+
+.dark .icon-button:active {
+  background: #1e293b;
+}
+
+.dark .mintify-date-picker {
+  background: linear-gradient(180deg, #1a2436 0%, #151d2e 100%);
+}
+
+.dark .mintify-date-picker .adm-picker-header-button:first-child {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+.dark .mintify-date-picker-title strong {
+  color: #e2e8f0;
+}
+
+.dark .mintify-date-picker .adm-picker-view {
+  border-color: #263145;
+  background: #151d2e;
+  box-shadow: none;
+}
+
+.dark .mintify-date-picker .adm-picker-view-mask-top,
+.dark .mintify-date-picker .adm-picker-view-mask-bottom {
+  background: #151d2e;
+}
+
+.dark .mintify-budget-category-options {
+  background: rgba(26, 36, 54, 0.98);
+}
+
+.dark .mintify-budget-category-option {
+  color: #e2e8f0;
+}
+
+.dark .mintify-budget-category-option.is-selected {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.18) 0%, rgba(251, 191, 36, 0.08) 100%);
+}
+
+.dark .mintify-budget-category-option:active {
+  background: #1e293b;
+}
+
 html,
 body {
   /* 移动端只保留横纵滚动，禁用双击与双指页面缩放。 */

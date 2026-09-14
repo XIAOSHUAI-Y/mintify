@@ -112,35 +112,35 @@ export default function FundRecordForm({
   return (
     <div className="mobile-overlay z-[80]">
       <div className="mobile-toolbar">
-        <button aria-label="取消" onClick={onCancel} className="icon-button text-slate-600"><X size={20} /></button>
+        <button aria-label="取消" onClick={onCancel} className="icon-button text-slate-600 dark:text-slate-300"><X size={20} /></button>
         <div className="font-semibold">{title}</div>
         <button
           onClick={() => void handleSave()}
           disabled={!canSave}
-          className="min-h-11 rounded-full px-2 text-sm font-semibold text-amber-700 disabled:text-slate-300"
+          className="min-h-11 rounded-full px-2 text-sm font-semibold text-amber-700 disabled:text-slate-300 dark:text-amber-300 dark:disabled:text-slate-600"
         >
           {existingBindingLocked ? '完成' : '保存'}
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-slate-50 p-4 pb-8">
+      <div className="flex-1 overflow-y-auto bg-slate-50 p-4 pb-8 dark:bg-slate-800/60">
         {mode === 'allocation' && !linkingExisting && (
-          <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs leading-5 text-amber-800">
+          <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-xs leading-5 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300">
             保存后，资金账本记录一笔“生活费”支出，主账本自动增加同金额的“生活费”收入。
           </div>
         )}
 
         {mode === 'allocation' && !record && existingIncomes.length > 0 && (
-          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
+          <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 dark:bg-slate-700/60">
             <button
               onClick={() => setAllocationSource('new')}
-              className={`min-h-11 rounded-xl text-sm font-medium ${allocationSource === 'new' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              className={`min-h-11 rounded-xl text-sm font-medium ${allocationSource === 'new' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-slate-50' : 'text-slate-500 dark:text-slate-400'}`}
             >
               新建划拨
             </button>
             <button
               onClick={() => setAllocationSource('existing')}
-              className={`min-h-11 rounded-xl text-sm font-medium ${allocationSource === 'existing' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              className={`min-h-11 rounded-xl text-sm font-medium ${allocationSource === 'existing' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-slate-50' : 'text-slate-500 dark:text-slate-400'}`}
             >
               关联已有收入
             </button>
@@ -148,7 +148,7 @@ export default function FundRecordForm({
         )}
 
         {linkingExisting && (
-          <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50 p-4 text-xs leading-5 text-sky-800">
+          <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50 p-4 text-xs leading-5 text-sky-800 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-300">
             {existingBindingLocked
               ? '这笔生活费来自主账本已有收入。资金页只保存关联，解除关联不会删除原收入。'
               : '选择主账本本月已有收入后，资金页只新增对应生活费支出，不会重复创建收入。'}
@@ -158,8 +158,8 @@ export default function FundRecordForm({
         <section className="surface-card p-4">
           {linkingExisting ? (
             <div>
-              <div className="mb-3 text-xs font-medium text-slate-500">选择主账本收入</div>
-              <div className="overflow-hidden rounded-2xl border border-slate-200">
+              <div className="mb-3 text-xs font-medium text-slate-500 dark:text-slate-400">选择主账本收入</div>
+              <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
                 {existingIncomes.map((transaction) => {
                   const selected = transaction.id === selectedIncomeId;
                   const categoryName = ledgerCategories.find((item) => item.id === transaction.categoryId)?.name;
@@ -168,14 +168,14 @@ export default function FundRecordForm({
                       key={transaction.id}
                       disabled={existingBindingLocked}
                       onClick={() => setSelectedIncomeId(transaction.id)}
-                      className={`flex min-h-16 w-full items-center gap-3 border-b border-slate-100 px-3 text-left last:border-0 ${selected ? 'bg-amber-50' : 'bg-white'} disabled:opacity-100`}
+                      className={`flex min-h-16 w-full items-center gap-3 border-b border-slate-100 px-3 text-left last:border-0 dark:border-slate-700/50 ${selected ? 'bg-amber-50 dark:bg-amber-400/10' : 'bg-white dark:bg-slate-800'} disabled:opacity-100`}
                     >
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${selected ? 'border-amber-500 bg-amber-500 text-white' : 'border-slate-300 text-transparent'}`}>✓</span>
+                      <span className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${selected ? 'border-amber-500 bg-amber-500 text-white' : 'border-slate-300 text-transparent dark:border-slate-600'}`}>✓</span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-slate-800">{transaction.note || categoryName || '主账本收入'}</span>
+                        <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{transaction.note || categoryName || '主账本收入'}</span>
                         <span className="mt-1 block text-xs text-slate-400">{formatFullDate(transaction.occurredAt)}</span>
                       </span>
-                      <span className="text-sm font-semibold text-emerald-600">+¥{transaction.amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</span>
+                      <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">+¥{transaction.amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</span>
                     </button>
                   );
                 })}
@@ -184,8 +184,8 @@ export default function FundRecordForm({
           ) : (
           <>
           <label className="block">
-            <span className="mb-2 block text-xs font-medium text-slate-500">金额</span>
-            <div className="flex min-h-16 items-center rounded-2xl border border-slate-200 bg-white px-4 focus-within:border-amber-400 focus-within:ring-4 focus-within:ring-amber-100">
+            <span className="mb-2 block text-xs font-medium text-slate-500 dark:text-slate-400">金额</span>
+            <div className="flex min-h-16 items-center rounded-2xl border border-slate-200 bg-white px-4 focus-within:border-amber-400 focus-within:ring-4 focus-within:ring-amber-100 dark:bg-slate-800 dark:border-slate-600 dark:focus-within:ring-amber-400/20">
               <span className="mr-2 text-xl font-semibold text-slate-400">¥</span>
               <input
                 autoFocus
@@ -194,14 +194,14 @@ export default function FundRecordForm({
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
                 placeholder="0.00"
-                className="min-w-0 flex-1 bg-transparent text-2xl font-semibold text-slate-900 outline-none"
+                className="min-w-0 flex-1 bg-transparent text-2xl font-semibold text-slate-900 outline-none dark:text-slate-50"
               />
             </div>
           </label>
 
           {mode !== 'allocation' && (
             <div className="mt-5">
-              <div className="mb-2 text-xs font-medium text-slate-500">类型</div>
+              <div className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">类型</div>
               <div className="grid grid-cols-2 gap-2">
                 {categories.map((item) => {
                   const selected = categoryId === item.id;
@@ -211,8 +211,8 @@ export default function FundRecordForm({
                       onClick={() => setCategoryId(item.id)}
                       className={`flex min-h-14 items-center gap-3 rounded-2xl border px-3 text-left transition-colors ${
                         selected
-                          ? 'border-amber-300 bg-amber-50 text-amber-900'
-                          : 'border-slate-200 bg-white text-slate-600'
+                          ? 'border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-200'
+                          : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
                       }`}
                     >
                       <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ backgroundColor: item.color }}>
@@ -227,34 +227,34 @@ export default function FundRecordForm({
           )}
 
           {mode === 'allocation' && (
-            <div className="mt-5 flex items-center gap-3 rounded-2xl bg-amber-50 p-3">
+            <div className="mt-5 flex items-center gap-3 rounded-2xl bg-amber-50 p-3 dark:bg-amber-400/10">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white"><WalletCards size={19} /></span>
               <span>
-                <span className="block text-sm font-semibold text-amber-900">生活费</span>
-                <span className="mt-0.5 block text-[11px] text-amber-700">同步到当前生活费主账本</span>
+                <span className="block text-sm font-semibold text-amber-900 dark:text-amber-200">生活费</span>
+                <span className="mt-0.5 block text-[11px] text-amber-700 dark:text-amber-300">同步到当前生活费主账本</span>
               </span>
             </div>
           )}
 
           <div className="mt-5">
-            <div className="mb-2 text-xs font-medium text-slate-500">日期</div>
+            <div className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">日期</div>
             <button
               onClick={() => setShowDatePicker(true)}
-              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left active:bg-slate-50"
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-slate-200 px-3 text-left active:bg-slate-50 dark:border-slate-700 dark:active:bg-slate-800"
             >
-              <CalendarDays size={19} className="text-amber-600" />
-              <span className="flex-1 text-sm font-medium text-slate-700">{formatFullDate(occurredAt)}</span>
+              <CalendarDays size={19} className="text-amber-600 dark:text-amber-400" />
+              <span className="flex-1 text-sm font-medium text-slate-700 dark:text-slate-200">{formatFullDate(occurredAt)}</span>
               <ChevronDown size={18} className="text-slate-400" />
             </button>
           </div>
 
           <label className="mt-5 block">
-            <span className="mb-2 block text-xs font-medium text-slate-500">备注（可选）</span>
+            <span className="mb-2 block text-xs font-medium text-slate-500 dark:text-slate-400">备注（可选）</span>
             <input
               value={note}
               onChange={(event) => setNote(event.target.value)}
               placeholder={mode === 'allocation' ? '例如：8月生活费' : `例如：${selectedCategoryMeta?.name || '资金记录'}`}
-              className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
+              className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 dark:focus:ring-amber-400/20"
             />
           </label>
           </>
@@ -264,7 +264,7 @@ export default function FundRecordForm({
         {onDelete && (
           <button
             onClick={() => void onDelete()}
-            className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-rose-50 text-sm font-medium text-rose-600"
+            className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-rose-50 text-sm font-medium text-rose-600 dark:bg-rose-400/10 dark:text-rose-300"
           >
             <Trash2 size={17} />
             {record?.mainIncomeOrigin === 'existing' ? '解除关联' : '删除这条记录'}

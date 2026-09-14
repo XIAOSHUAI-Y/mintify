@@ -62,20 +62,20 @@ export default function FundCategoryPage({ onClose }: FundCategoryPageProps) {
   return (
     <div className="mobile-overlay z-[80]">
       <div className="mobile-toolbar">
-        <button aria-label="返回资金页" onClick={onClose} className="icon-button text-slate-600"><X size={20} /></button>
+        <button aria-label="返回资金页" onClick={onClose} className="icon-button text-slate-600 dark:text-slate-300"><X size={20} /></button>
         <div className="text-center">
           <div className="font-semibold">资金分类</div>
           <div className="mt-0.5 text-[10px] text-slate-400">仅用于工资与固定收支</div>
         </div>
-        <button aria-label="新增资金分类" onClick={() => setShowForm(true)} className="icon-button"><Plus size={22} className="text-amber-700" /></button>
+        <button aria-label="新增资金分类" onClick={() => setShowForm(true)} className="icon-button"><Plus size={22} className="text-amber-700 dark:text-amber-300" /></button>
       </div>
 
-      <div className="m-4 flex rounded-xl bg-slate-200/60 p-1">
+      <div className="m-4 flex rounded-xl bg-slate-200/60 p-1 dark:bg-slate-600/60">
         {(['expense', 'income'] as const).map((categoryType) => (
           <button
             key={categoryType}
             onClick={() => setType(categoryType)}
-            className={`min-h-11 flex-1 rounded-lg text-sm font-medium ${type === categoryType ? 'bg-white shadow-sm' : 'text-slate-500'}`}
+            className={`min-h-11 flex-1 rounded-lg text-sm font-medium ${type === categoryType ? 'bg-white shadow-sm dark:bg-slate-700' : 'text-slate-500 dark:text-slate-400'}`}
           >
             {categoryType === 'expense' ? '支出' : '收入'}
           </button>
@@ -83,7 +83,7 @@ export default function FundCategoryPage({ onClose }: FundCategoryPageProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pb-8">
-        <div className="mb-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+        <div className="mb-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300">
           这里的分类与生活费账本分开管理，新增工资、贷款或季度房租等类型不会影响日常预算。
         </div>
         <div className="space-y-2">
@@ -91,7 +91,7 @@ export default function FundCategoryPage({ onClose }: FundCategoryPageProps) {
             <button
               key={category.id}
               onClick={() => setEditingCategory(category)}
-              className="surface-card flex min-h-16 w-full items-center gap-3 p-3 text-left active:bg-slate-50"
+              className="surface-card flex min-h-16 w-full items-center gap-3 p-3 text-left active:bg-slate-50 dark:active:bg-slate-800"
             >
               <span
                 className="flex h-10 w-10 items-center justify-center rounded-xl text-white"
@@ -99,8 +99,8 @@ export default function FundCategoryPage({ onClose }: FundCategoryPageProps) {
               >
                 <Icon name={category.icon} size={18} />
               </span>
-              <span className="min-w-0 flex-1 truncate font-medium text-slate-800">{category.name}</span>
-              {category.isBuiltIn && <span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-400">内置</span>}
+              <span className="min-w-0 flex-1 truncate font-medium text-slate-800 dark:text-slate-100">{category.name}</span>
+              {category.isBuiltIn && <span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] text-slate-400 dark:bg-slate-700/60">内置</span>}
               <ChevronRight size={18} className="text-slate-300" />
             </button>
           ))}

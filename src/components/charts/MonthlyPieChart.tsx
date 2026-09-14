@@ -60,7 +60,7 @@ export default function MonthlyPieChart({ transactions, categories, yearMonth, t
           </PieChart>
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <div className="text-xs text-gray-500">总支出</div>
+          <div className="text-xs text-gray-500 dark:text-slate-400">总支出</div>
           <div className="text-lg font-bold">{formatMoney(total)}</div>
         </div>
       </div>
@@ -72,7 +72,7 @@ export default function MonthlyPieChart({ transactions, categories, yearMonth, t
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
               <span className="text-sm">{item.name}</span>
             </div>
-            <span className="text-sm text-gray-500">{formatMoney(item.value)}</span>
+            <span className="text-sm text-gray-500 dark:text-slate-400">{formatMoney(item.value)}</span>
           </div>
         ))}
       </div>

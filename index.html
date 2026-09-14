@@ -10,6 +10,17 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Mintify" />
     <title>Mintify 记账</title>
+    <script>
+      // 首帧渲染前恢复主题，避免深色模式用户看到白屏闪烁。
+      (function () {
+        var mode = localStorage.getItem('mintify-theme') || 'system';
+        var dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) {
+          document.documentElement.classList.add('dark');
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0f172a');
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

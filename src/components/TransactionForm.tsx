@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { DatePicker } from 'antd-mobile';
+import { DatePicker, Toast } from 'antd-mobile';
 import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
@@ -9,6 +9,7 @@ import { PRESET_TAGS } from '../data/seed';
 import type { Transaction } from '../types';
 import { getRemainingRefundableAmount } from '../domain/transactionAccounting';
 import { calculateMonthlyBudgetAvailability } from '../domain/reserveLedger';
+import { buildBudgetAlerts } from '../domain/budgetAlerts';
 
 type EntryMode = Transaction['type'] | 'saving';
 
@@ -196,6 +197,8 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       return;
     }
 
+    showBudgetAlertsIfNeeded(transactionData);
+
     if (keepOpen && !isRefundMode) {
       setAmount('');
       setNote('');
@@ -208,6 +211,32 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     onClose();
   };
 
+  // 保存成功后才评估预算：上下文里的 transactions 此刻还是旧快照，需要手动并入刚保存的记录。
+  const showBudgetAlertsIfNeeded = (saved: Transaction) => {
+    if (!currentLedger || saved.type !== 'expense') return;
+    const mergedTransactions = [
+      ...transactions.filter((item) => item.id !== saved.id),
+      saved,
+    ];
+    const alerts = buildBudgetAlerts({
+      budgets,
+      transactions: mergedTransactions,
+      ledgerId: currentLedger.id,
+      savedTransaction: saved,
+      previousTransaction: editingTransaction,
+      categoryName: categories.find((category) => category.id === saved.categoryId)?.name,
+    });
+    if (alerts.length === 0) return;
+    Toast.show({
+      duration: 3000,
+      content: alerts
+        .map((alert) => alert.severity === 'exceeded'
+          ? `${alert.label}已超支（${Math.round(alert.percentage)}%）`
+          : `${alert.label}已用 ${Math.round(alert.percentage)}%`)
+        .join('；'),
+    });
+  };
+
   const canSave = Boolean(
     amount
     && Number(amount) > 0
@@ -216,13 +245,13 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   );
 
   return (
-    <div className="mobile-overlay bg-white">
+    <div className="mobile-overlay bg-white dark:bg-slate-900">
       <div className="mobile-toolbar">
-        <button onClick={onClose} className="min-h-11 rounded-full px-2 text-sm text-slate-500 active:bg-slate-100">取消</button>
+        <button onClick={onClose} className="min-h-11 rounded-full px-2 text-sm text-slate-500 active:bg-slate-100 dark:text-slate-400 dark:active:bg-slate-800">取消</button>
         <div className="font-semibold">{editingTransaction ? '编辑账单' : currentLedger?.name || '记账'}</div>
         <button
           onClick={() => handleSave(false)}
-          className="min-h-11 rounded-full px-2 text-sm font-semibold text-amber-700 disabled:text-slate-300"
+          className="min-h-11 rounded-full px-2 text-sm font-semibold text-amber-700 disabled:text-slate-300 dark:text-amber-400"
           disabled={!canSave}
         >
           保存
@@ -239,7 +268,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
 
       {/* Type Selector */}
       <div className="mb-3 px-4">
-        <div className="flex rounded-xl bg-slate-100 p-1">
+        <div className="flex rounded-xl bg-slate-100 p-1 dark:bg-slate-700/60">
           {((editingTransaction
             ? ['expense', 'income', 'transfer']
             : ['expense', 'income', 'transfer', 'saving']) as EntryMode[]).map((t) => (
@@ -252,7 +281,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
               }}
               aria-pressed={type === t}
               className={`min-h-11 flex-1 rounded-lg text-sm font-medium transition-colors ${
-                type === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'
+                type === t ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               {t === 'expense' ? '支出' : t === 'income' ? '收入' : t === 'transfer' ? '转账' : '存钱'}
@@ -268,8 +297,8 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
               onClick={() => setIncomeMode('standard')}
               className={`flex min-h-14 items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition-colors ${
                 incomeMode === 'standard'
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-slate-200 bg-white text-slate-500'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-300'
+                  : 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
               }`}
             >
               普通收入
@@ -278,8 +307,8 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
               onClick={() => setIncomeMode('refund')}
               className={`flex min-h-14 items-center justify-center gap-2 rounded-2xl border text-sm font-semibold transition-colors ${
                 incomeMode === 'refund'
-                  ? 'border-amber-300 bg-amber-50 text-amber-700'
-                  : 'border-slate-200 bg-white text-slate-500'
+                  ? 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300'
+                  : 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
               }`}
             >
               <RotateCcw size={17} /> 退款
@@ -292,7 +321,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       <HorizontalScrollArea className="mb-4 flex gap-2 overflow-x-auto px-4 pb-1 pr-10">
         <button
           onClick={openDatePicker}
-          className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
+          className="flex min-h-10 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm dark:bg-slate-700/60"
         >
           <Calendar size={16} />
           {formatShortDate(occurredAt)}
@@ -300,7 +329,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
         {!isSavingMode && (
           <button
             onClick={() => setShowTagPicker(true)}
-            className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
+            className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm dark:bg-slate-700/60"
           >
             <Tag size={16} />
             {tags.length > 0 ? tags.join(',') : '标签'}
@@ -308,13 +337,13 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
         )}
         <button
           onClick={() => setShowNoteInput(true)}
-          className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm"
+          className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm dark:bg-slate-700/60"
         >
           <FileText size={16} />
           {note || '备注'}
         </button>
         {!isSavingMode && (
-          <label className="flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm">
+          <label className="flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm dark:bg-slate-700/60">
             <FileImage size={16} />
             {photo ? '已选图片' : '图片'}
             <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
@@ -329,7 +358,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       )}
 
       {saveError && (
-        <div className="mx-4 mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{saveError}</div>
+        <div className="mx-4 mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">{saveError}</div>
       )}
 
       {/* 退款必须显式绑定原支出；普通收支继续沿用原有分类网格。 */}
@@ -337,7 +366,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
         {isSavingMode ? (
           <>
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-800">存到哪里</div>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">存到哪里</div>
               <div className="text-xs text-slate-400">
                 {savingAvailability.budgetAmount > 0
                   ? `本月可存 ${formatMoney(savingAvailability.availableAmount)}`
@@ -349,14 +378,14 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                 onClick={() => setSavingTarget('general')}
                 aria-pressed={savingTarget === 'general'}
                 className={`flex min-h-18 w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-colors ${
-                  savingTarget === 'general' ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
+                  savingTarget === 'general' ? 'border-amber-300 bg-amber-50 dark:border-amber-400/30 dark:bg-amber-400/10' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
                 }`}
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-400 text-amber-950">
                   <Landmark size={21} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-slate-800">通用结余池</span>
+                  <span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">通用结余池</span>
                   <span className="mt-0.5 block text-xs text-slate-400">先存下来，以后再决定用途</span>
                 </span>
               </button>
@@ -366,7 +395,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                   onClick={() => setSavingTarget(plan.id)}
                   aria-pressed={savingTarget === plan.id}
                   className={`flex min-h-18 w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-colors ${
-                    savingTarget === plan.id ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
+                    savingTarget === plan.id ? 'border-amber-300 bg-amber-50 dark:border-amber-400/30 dark:bg-amber-400/10' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
                   }`}
                 >
                   <span
@@ -376,7 +405,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                     <PiggyBank size={21} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-slate-800">{plan.name}</span>
+                    <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{plan.name}</span>
                     <span className="mt-0.5 block text-xs text-slate-400">
                       {plan.targetAmount ? `目标 ${formatMoney(plan.targetAmount)}` : '慢慢攒，不设压力'}
                     </span>
@@ -384,21 +413,21 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                 </button>
               ))}
             </div>
-            <div className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-xs leading-5 text-slate-500">
+            <div className="mt-3 rounded-xl bg-slate-100 px-3 py-2 text-xs leading-5 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400">
               这笔钱会减少当月可用预算，但不会算作消费，也不会影响分类支出图表。
             </div>
           </>
         ) : isRefundMode ? (
           <>
             <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-                <Link2 size={16} className="text-amber-600" /> 绑定支出账单
+              <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                <Link2 size={16} className="text-amber-600 dark:text-amber-400" /> 绑定支出账单
               </div>
               <div className="text-xs text-slate-400">{refundableExpenses.length} 笔可退</div>
             </div>
             {refundableExpenses.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
-                <div className="text-sm font-medium text-slate-500">没有可退款的支出</div>
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center dark:border-slate-700 dark:bg-slate-800/60">
+                <div className="text-sm font-medium text-slate-500 dark:text-slate-400">没有可退款的支出</div>
                 <div className="mt-1 text-xs text-slate-400">请先记录支出，或检查是否已经全额退款</div>
               </div>
             ) : (
@@ -416,7 +445,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                         setSaveError('');
                       }}
                       className={`flex min-h-18 w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors ${
-                        selected ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'
+                        selected ? 'border-amber-300 bg-amber-50 dark:border-amber-400/30 dark:bg-amber-400/10' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
                       }`}
                     >
                       <span
@@ -426,7 +455,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                         <Icon name={category?.icon || 'more-horizontal'} size={20} />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-semibold text-slate-800">
+                        <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                           {expense.note || category?.name || '未分类支出'}
                         </span>
                         <span className="mt-0.5 block text-xs text-slate-400">
@@ -435,7 +464,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                       </span>
                       <span className="shrink-0 text-right">
                         <span className="block text-xs text-slate-400">可退</span>
-                        <span className="text-sm font-semibold text-amber-700">{formatMoney(remaining)}</span>
+                        <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">{formatMoney(remaining)}</span>
                       </span>
                     </button>
                   );
@@ -446,7 +475,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
         ) : (
           <>
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-800">选择分类</div>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">选择分类</div>
               <div className="text-xs text-slate-400">{filteredCategories.length} 个</div>
             </div>
             <div className="grid grid-cols-4 gap-x-3 gap-y-4">
@@ -460,7 +489,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
             >
               <div
                 className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
-                  selectedCategoryId === category.id ? 'text-white' : 'bg-gray-100 text-gray-700'
+                  selectedCategoryId === category.id ? 'text-white' : 'bg-gray-100 text-gray-700 dark:bg-slate-700/60 dark:text-slate-300'
                 }`}
                 style={{
                   backgroundColor: selectedCategoryId === category.id ? category.color : undefined,
@@ -477,7 +506,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       </div>
 
       {/* Number Pad */}
-      <div className="safe-bottom border-t border-slate-100 bg-slate-50">
+      <div className="safe-bottom border-t border-slate-100 bg-slate-50 dark:border-slate-700/50 dark:bg-slate-800/60">
         <div className="grid grid-cols-4">
           {[
             { label: '1', action: () => handleNumber('1') },
@@ -508,7 +537,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
               onClick={btn.action}
               disabled={btn.label === '保存' && !canSave}
               className={`h-14 text-lg font-medium transition-opacity active:opacity-70 disabled:opacity-40 ${
-                btn.primary ? 'bg-primary text-black' : 'border-b border-r border-slate-100 bg-white text-slate-800'
+                btn.primary ? 'bg-primary text-black' : 'border-b border-r border-slate-100 bg-white text-slate-800 dark:border-slate-700/50 dark:bg-slate-800 dark:text-slate-100'
               }`}
             >
               {btn.label}
@@ -554,7 +583,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       {/* Tag Picker Modal */}
       {showTagPicker && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-4 w-full max-w-sm max-h-[70vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl p-4 w-full max-w-sm max-h-[70vh] overflow-y-auto dark:bg-slate-800">
             <div className="flex justify-between items-center mb-4">
               <span className="font-medium">选择标签</span>
               <button onClick={() => setShowTagPicker(false)}><X size={20} /></button>
@@ -565,7 +594,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                   key={tag}
                   onClick={() => toggleTag(tag)}
                   className={`px-3 py-1.5 rounded-full text-sm ${
-                    tags.includes(tag) ? 'bg-primary text-black' : 'bg-gray-100 text-gray-700'
+                    tags.includes(tag) ? 'bg-primary text-black' : 'bg-gray-100 text-gray-700 dark:bg-slate-700/60 dark:text-slate-300'
                   }`}
                 >
                   {tag}
@@ -579,12 +608,12 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       {/* Note Input Modal */}
       {showNoteInput && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-4 w-full max-w-sm">
+          <div className="bg-white rounded-2xl p-4 w-full max-w-sm dark:bg-slate-800">
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="请输入备注"
-              className="w-full p-3 border border-gray-200 rounded-lg mb-4 min-h-[100px]"
+              className="w-full p-3 border border-gray-200 rounded-lg mb-4 min-h-[100px] dark:border-slate-700 dark:bg-slate-800"
             />
             <button
               onClick={() => setShowNoteInput(false)}

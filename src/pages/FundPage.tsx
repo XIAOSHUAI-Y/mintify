@@ -107,7 +107,7 @@ export default function FundPage({ onClose }: FundPageProps) {
   return (
     <div className="mobile-overlay z-[60]">
       <div className="mobile-toolbar">
-        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600"><X size={20} /></button>
+        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600 dark:text-slate-300"><X size={20} /></button>
         <div>
           <div className="text-center font-semibold">资金</div>
           <div className="mt-0.5 text-[10px] text-slate-400">工资与固定支出</div>
@@ -115,53 +115,53 @@ export default function FundPage({ onClose }: FundPageProps) {
         <button
           aria-label="管理资金分类"
           onClick={() => setShowCategoryManager(true)}
-          className="icon-button text-amber-700"
+          className="icon-button text-amber-700 dark:text-amber-300"
         >
           <Tags size={20} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-slate-50 p-4 pb-8">
-        <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1">
+      <div className="flex-1 overflow-y-auto bg-slate-50 p-4 pb-8 dark:bg-slate-800/60">
+        <div className="mb-4 grid grid-cols-2 rounded-2xl bg-slate-100 p-1 dark:bg-slate-700/60">
           <button
             onClick={() => setView('records')}
-            className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium ${view === 'records' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium ${view === 'records' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-slate-50' : 'text-slate-500 dark:text-slate-400'}`}
           >
             <List size={17} />月度记录
           </button>
           <button
             onClick={() => setView('charts')}
-            className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium ${view === 'charts' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-xl text-sm font-medium ${view === 'charts' ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-600 dark:text-slate-50' : 'text-slate-500 dark:text-slate-400'}`}
           >
             <BarChart3 size={17} />资金图表
           </button>
         </div>
 
-        <div className="mb-4 flex items-center justify-between rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-100">
+        <div className="mb-4 flex items-center justify-between rounded-2xl bg-white p-1 shadow-sm ring-1 ring-slate-100 dark:bg-slate-800 dark:ring-slate-700">
           <button aria-label="上个月" onClick={() => goMonth(-1)} className="icon-button"><ChevronLeft size={18} /></button>
-          <div className="text-center text-sm font-semibold text-slate-800">{formatYearMonth(selectedYearMonth)}</div>
+          <div className="text-center text-sm font-semibold text-slate-800 dark:text-slate-100">{formatYearMonth(selectedYearMonth)}</div>
           <button aria-label="下个月" onClick={() => goMonth(1)} className="icon-button"><ChevronRight size={18} /></button>
         </div>
 
         {view === 'records' ? (
           <>
-            <section className="mb-4 overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-emerald-50 p-5 shadow-[0_14px_32px_rgba(148,163,184,0.14)]">
+            <section className="mb-4 overflow-hidden rounded-[1.5rem] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-emerald-50 p-5 shadow-[0_14px_32px_rgba(148,163,184,0.14)] dark:border-amber-400/20 dark:from-amber-400/15 dark:via-slate-800 dark:to-emerald-400/10">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-xs text-slate-500">本月资金结余</div>
-                  <div className={`mt-1 text-2xl font-bold tracking-tight ${summary.balance >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">本月资金结余</div>
+                  <div className={`mt-1 text-2xl font-bold tracking-tight ${summary.balance >= 0 ? 'text-slate-900 dark:text-slate-50' : 'text-rose-600 dark:text-rose-400'}`}>
                     {formatMoney(summary.balance)}
                   </div>
                 </div>
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Banknote size={22} /></span>
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"><Banknote size={22} /></span>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <SummaryCell label="实际收入" value={summary.income} income />
                 <SummaryCell label="实际支出" value={summary.expense} />
               </div>
-              <div className="mt-3 flex items-center justify-between rounded-xl bg-white/75 px-3 py-2.5 text-xs shadow-sm">
-                <span className="flex items-center gap-1.5 text-slate-500"><WalletCards size={15} className="text-amber-600" />已划拨生活费</span>
-                <span className="font-semibold text-amber-800">{formatMoney(summary.livingExpenseAllocation)}</span>
+              <div className="mt-3 flex items-center justify-between rounded-xl bg-white/75 px-3 py-2.5 text-xs shadow-sm dark:bg-slate-800/75">
+                <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><WalletCards size={15} className="text-amber-600 dark:text-amber-400" />已划拨生活费</span>
+                <span className="font-semibold text-amber-800 dark:text-amber-300">{formatMoney(summary.livingExpenseAllocation)}</span>
               </div>
             </section>
 
@@ -185,24 +185,24 @@ export default function FundPage({ onClose }: FundPageProps) {
               </button>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <button onClick={() => openForm('income')} className="surface-card flex min-h-16 items-center gap-3 px-4 text-left active:scale-[0.99]">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"><ArrowDownToLine size={19} /></span>
-                  <span><span className="block text-sm font-semibold text-slate-800">记收入</span><span className="mt-0.5 block text-[11px] text-slate-400">工资、奖金</span></span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400"><ArrowDownToLine size={19} /></span>
+                  <span><span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">记收入</span><span className="mt-0.5 block text-[11px] text-slate-400">工资、奖金</span></span>
                 </button>
                 <button onClick={() => openForm('expense')} className="surface-card flex min-h-16 items-center gap-3 px-4 text-left active:scale-[0.99]">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-500"><ArrowUpFromLine size={19} /></span>
-                  <span><span className="block text-sm font-semibold text-slate-800">记支出</span><span className="mt-0.5 block text-[11px] text-slate-400">房租、车贷</span></span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-500 dark:bg-rose-400/10 dark:text-rose-400"><ArrowUpFromLine size={19} /></span>
+                  <span><span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">记支出</span><span className="mt-0.5 block text-[11px] text-slate-400">房租、车贷</span></span>
                 </button>
               </div>
             </section>
 
             <section>
               <div className="mb-2 flex items-center justify-between px-1">
-                <h2 className="text-sm font-semibold text-slate-800">本月资金记录</h2>
+                <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-100">本月资金记录</h2>
                 <span className="text-xs text-slate-400">{monthTransactions.length} 笔</span>
               </div>
               {monthTransactions.length === 0 ? (
                 <div className="surface-card py-10 text-center">
-                  <div className="text-sm font-medium text-slate-500">本月还没有资金记录</div>
+                  <div className="text-sm font-medium text-slate-500 dark:text-slate-400">本月还没有资金记录</div>
                   <div className="mt-1 text-xs text-slate-400">按实际发生金额直接记录即可</div>
                 </div>
               ) : (
@@ -274,9 +274,9 @@ export default function FundPage({ onClose }: FundPageProps) {
 
 function SummaryCell({ label, value, income = false }: { label: string; value: number; income?: boolean }) {
   return (
-    <div className="rounded-2xl border border-white/80 bg-white/75 px-3 py-3 shadow-sm">
-      <div className="text-[11px] text-slate-500">{label}</div>
-      <div className={`mt-1 text-sm font-semibold ${income ? 'text-emerald-600' : 'text-rose-500'}`}>{formatMoney(value)}</div>
+    <div className="rounded-2xl border border-white/80 bg-white/75 px-3 py-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/75">
+      <div className="text-[11px] text-slate-500 dark:text-slate-400">{label}</div>
+      <div className={`mt-1 text-sm font-semibold ${income ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>{formatMoney(value)}</div>
     </div>
   );
 }
@@ -295,7 +295,7 @@ function FundTransactionRow({
   const icon = transaction.kind === 'living-expense-allocation' ? 'wallet-cards' : category?.icon || 'receipt-text';
   const color = transaction.kind === 'living-expense-allocation' ? '#F59E0B' : category?.color || '#64748B';
   return (
-    <button onClick={onClick} className="flex min-h-[4.5rem] w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 active:bg-slate-50">
+    <button onClick={onClick} className="flex min-h-[4.5rem] w-full items-center gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 active:bg-slate-50 dark:border-slate-700/50 dark:active:bg-slate-800">
       <span
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
         style={{ backgroundColor: color }}
@@ -303,7 +303,7 @@ function FundTransactionRow({
         <Icon name={icon} size={18} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold text-slate-800">{category?.name || transaction.category}</span>
+        <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">{category?.name || transaction.category}</span>
         <span className="mt-1 block truncate text-xs text-slate-400">
           {formatDay(transaction.occurredAt)}
           {transaction.kind === 'living-expense-allocation'
@@ -311,7 +311,7 @@ function FundTransactionRow({
             : transaction.note ? ` · ${transaction.note}` : ''}
         </span>
       </span>
-      <span className={`text-sm font-semibold ${income ? 'text-emerald-600' : 'text-rose-500'}`}>
+      <span className={`text-sm font-semibold ${income ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
         {income ? '+' : '-'}{formatMoney(transaction.amount)}
       </span>
     </button>
@@ -343,7 +343,7 @@ function FundCharts({
   return (
     <div>
       <section className="surface-card mb-4 p-4">
-        <div className="mb-4 font-semibold text-slate-800">{selectedDate.getFullYear()} 年资金趋势</div>
+        <div className="mb-4 font-semibold text-slate-800 dark:text-slate-100">{selectedDate.getFullYear()} 年资金趋势</div>
         {hasTrend ? (
           <div className="h-56">
             <ResponsiveContainer width="100%" height="100%">
@@ -366,7 +366,7 @@ function FundCharts({
       </section>
 
       <section className="surface-card p-4">
-        <div className="font-semibold text-slate-800">{formatYearMonth(selectedYearMonth)}支出构成</div>
+        <div className="font-semibold text-slate-800 dark:text-slate-100">{formatYearMonth(selectedYearMonth)}支出构成</div>
         {breakdown.length === 0 ? (
           <div className="flex h-40 items-center justify-center text-sm text-slate-400">本月暂无支出</div>
         ) : (
@@ -383,14 +383,14 @@ function FundCharts({
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-xs text-slate-400">总支出</span>
-                <span className="mt-1 text-lg font-bold text-slate-800">{formatMoney(expenseTotal)}</span>
+                <span className="mt-1 text-lg font-bold text-slate-800 dark:text-slate-100">{formatMoney(expenseTotal)}</span>
               </div>
             </div>
             <div className="space-y-2">
               {breakdown.map((item) => (
                 <div key={item.category} className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 text-slate-600"><i className="h-3 w-3 rounded-full" style={{ backgroundColor: getFundCategoryColor(item.category, categories) }} />{item.category}</span>
-                  <span className="font-medium text-slate-800">{formatMoney(item.amount)}</span>
+                  <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300"><i className="h-3 w-3 rounded-full" style={{ backgroundColor: getFundCategoryColor(item.category, categories) }} />{item.category}</span>
+                  <span className="font-medium text-slate-800 dark:text-slate-100">{formatMoney(item.amount)}</span>
                 </div>
               ))}
             </div>

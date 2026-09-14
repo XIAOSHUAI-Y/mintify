@@ -46,7 +46,7 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="bottom-sheet max-h-[88svh] overflow-y-auto" onClick={(event) => event.stopPropagation()}>
-        <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-200" />
+        <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-200 dark:bg-slate-600" />
         <div className="flex items-center justify-between py-2">
           <span className="font-semibold">账单详情</span>
           <button aria-label="关闭账单详情" onClick={onClose} className="icon-button"><X size={20} /></button>
@@ -63,10 +63,10 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
           <div
             className={`text-3xl font-bold ${
               transaction.type === 'income'
-                ? 'text-green-600'
+                ? 'text-green-600 dark:text-green-400'
                 : transaction.type === 'expense'
-                ? 'text-red-500'
-                : 'text-blue-500'
+                ? 'text-red-500 dark:text-red-400'
+                : 'text-blue-500 dark:text-blue-400'
             }`}
           >
             {transaction.type === 'income' ? '+' : transaction.type === 'expense' ? '-' : ''}
@@ -74,47 +74,47 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
           </div>
         </div>
 
-        <div className="rounded-2xl bg-slate-50 px-4 py-2">
-          <div className="flex justify-between py-2 border-b border-gray-50">
-            <span className="text-gray-500">类型</span>
+        <div className="rounded-2xl bg-slate-50 px-4 py-2 dark:bg-slate-800/60">
+          <div className="flex justify-between py-2 border-b border-gray-50 dark:border-slate-700/50">
+            <span className="text-gray-500 dark:text-slate-400">类型</span>
             <span>
               {transaction.kind === 'refund' ? '退款（冲减支出）' : transaction.type === 'income' ? '收入' : transaction.type === 'expense' ? '支出' : '转账'}
             </span>
           </div>
           {linkedExpense && (
-            <div className="flex items-center justify-between gap-3 border-b border-gray-50 py-2">
-              <span className="flex items-center gap-1.5 text-gray-500"><Link2 size={15} />绑定支出</span>
+            <div className="flex items-center justify-between gap-3 border-b border-gray-50 py-2 dark:border-slate-700/50">
+              <span className="flex items-center gap-1.5 text-gray-500 dark:text-slate-400"><Link2 size={15} />绑定支出</span>
               <span className="min-w-0 text-right">
                 <span className="block truncate">{linkedExpense.note || linkedExpenseCategory?.name || '支出账单'}</span>
                 <span className="block text-xs text-slate-400">{formatShortDate(linkedExpense.occurredAt)} · {formatMoney(linkedExpense.amount)}</span>
               </span>
             </div>
           )}
-          <div className="flex justify-between py-2 border-b border-gray-50">
-            <span className="text-gray-500">日期</span>
+          <div className="flex justify-between py-2 border-b border-gray-50 dark:border-slate-700/50">
+            <span className="text-gray-500 dark:text-slate-400">日期</span>
             <span>{formatShortDate(transaction.occurredAt)}</span>
           </div>
           {transaction.note && (
-            <div className="flex justify-between py-2 border-b border-gray-50">
-              <span className="text-gray-500">备注</span>
+            <div className="flex justify-between py-2 border-b border-gray-50 dark:border-slate-700/50">
+              <span className="text-gray-500 dark:text-slate-400">备注</span>
               <span>{transaction.note}</span>
             </div>
           )}
           {transaction.tags.length > 0 && (
-            <div className="flex justify-between py-2 border-b border-gray-50">
-              <span className="text-gray-500">标签</span>
+            <div className="flex justify-between py-2 border-b border-gray-50 dark:border-slate-700/50">
+              <span className="text-gray-500 dark:text-slate-400">标签</span>
               <span>{transaction.tags.join(', ')}</span>
             </div>
           )}
           {transaction.photo && (
             <div className="py-2">
-              <div className="text-gray-500 mb-2">图片</div>
+              <div className="text-gray-500 mb-2 dark:text-slate-400">图片</div>
               <img src={transaction.photo} alt="receipt" className="w-full rounded-lg" />
             </div>
           )}
         </div>
 
-        {deleteError && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600">{deleteError}</div>}
+        {deleteError && <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">{deleteError}</div>}
 
         <div className="flex gap-3 pt-4">
           <button
@@ -126,7 +126,7 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
           <button
             onClick={() => setShowDelete(true)}
             aria-label="删除账单"
-            className="px-4 py-3 bg-red-50 text-red-500 rounded-xl"
+            className="px-4 py-3 bg-red-50 text-red-500 rounded-xl dark:bg-red-400/10 dark:text-red-400"
           >
             <Trash2 size={20} />
           </button>
@@ -135,13 +135,13 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
 
       {showDelete && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm dark:bg-slate-800">
             <div className="text-lg font-medium mb-2">删除账单</div>
-            <div className="text-gray-500 mb-6">确定删除这条记录吗？删除后无法恢复。</div>
+            <div className="text-gray-500 mb-6 dark:text-slate-400">确定删除这条记录吗？删除后无法恢复。</div>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDelete(false)}
-                className="flex-1 py-3 bg-gray-100 rounded-xl"
+                className="flex-1 py-3 bg-gray-100 rounded-xl dark:bg-slate-700/60"
               >
                 取消
               </button>

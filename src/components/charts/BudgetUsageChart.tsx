@@ -78,10 +78,10 @@ export default function BudgetUsageChart({
                 onClick={() => setSelectedMonth(month.month)}
                 className={`shrink-0 rounded-full px-2.5 py-1.5 text-xs font-medium ${
                   selectedMonth === month.month
-                    ? 'bg-slate-900 text-white'
+                    ? 'bg-slate-900 text-white dark:bg-slate-600'
                     : month.status === 'overspent'
-                      ? 'bg-rose-50 text-rose-600'
-                      : 'bg-slate-50 text-slate-500'
+                      ? 'bg-rose-50 text-rose-600 dark:bg-rose-400/10 dark:text-rose-300'
+                      : 'bg-slate-50 text-slate-500 dark:bg-slate-800/60 dark:text-slate-400'
                 }`}
               >
                 {month.month}月
@@ -103,7 +103,7 @@ function YearStatus({ overview }: { overview: ReturnType<typeof buildMonthlyBudg
   const changedCount = overview.filter((month) => month.budgetChanges.length > 0).length;
   return (
     <div className="shrink-0 text-right text-[11px] leading-5 text-slate-400">
-      <div className={overspentCount > 0 ? 'text-rose-500' : 'text-emerald-600'}>
+      <div className={overspentCount > 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
         {overspentCount > 0 ? `超支 ${overspentCount} 个月` : '暂无超支'}
       </div>
       <div>调整 {changedCount} 个月</div>
@@ -124,18 +124,18 @@ function MonthDetail({
   const usage = month.utilization === null ? 0 : Math.min(month.utilization, 100);
 
   return (
-    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5">
+    <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 dark:border-slate-700/50 dark:bg-slate-800/60">
       <div className="flex items-center justify-between gap-3">
         <div>
           <div className="text-sm font-semibold">{month.month} 月预算</div>
-          <div className="mt-1 text-xs text-slate-500">
+          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             已用 {formatMoney(month.spentAmount)} / {formatMoney(month.budgetAmount)}
           </div>
         </div>
         <StatusBadge status={month.status} utilization={month.utilization} />
       </div>
 
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white dark:bg-slate-700">
         <div
           className={`h-full rounded-full ${month.status === 'overspent' ? 'bg-rose-500' : 'bg-emerald-500'}`}
           style={{ width: `${usage}%` }}
@@ -161,12 +161,12 @@ function MonthDetail({
 
 function StatusBadge({ status, utilization }: { status: 'no-budget' | 'on-track' | 'overspent'; utilization: number | null }) {
   if (status === 'no-budget') {
-    return <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">未设置</span>;
+    return <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 dark:bg-slate-700/60 dark:text-slate-400">未设置</span>;
   }
   if (status === 'overspent') {
-    return <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-600">超支 {formatPercentage(utilization ?? 0)}</span>;
+    return <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">超支 {formatPercentage(utilization ?? 0)}</span>;
   }
-  return <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">已用 {formatPercentage(utilization ?? 0)}</span>;
+  return <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">已用 {formatPercentage(utilization ?? 0)}</span>;
 }
 
 function ChangeGroup<T>({
@@ -183,20 +183,20 @@ function ChangeGroup<T>({
   renderItem: (item: T) => string;
 }) {
   return (
-    <div className="mt-3 border-t border-slate-200/70 pt-3">
+    <div className="mt-3 border-t border-slate-200/70 pt-3 dark:border-slate-700">
       <div className="flex items-center justify-between text-xs">
-        <span className="font-medium text-slate-600">{title}</span>
+        <span className="font-medium text-slate-600 dark:text-slate-300">{title}</span>
         {items.length === 0 && <span className="text-slate-400">{emptyText}</span>}
       </div>
       {items.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {items.map((item, index) => (
-            <span key={`${title}-${index}`} className="rounded-lg bg-white px-2 py-1 text-[11px] leading-4 text-slate-600 shadow-sm">
+            <span key={`${title}-${index}`} className="rounded-lg bg-white px-2 py-1 text-[11px] leading-4 text-slate-600 shadow-sm dark:bg-slate-700 dark:text-slate-300">
               {renderItem(item)}
             </span>
           ))}
           {extraCount > 0 && (
-            <span className="rounded-lg bg-white px-2 py-1 text-[11px] text-slate-400 shadow-sm">另 {extraCount} 项</span>
+            <span className="rounded-lg bg-white px-2 py-1 text-[11px] text-slate-400 shadow-sm dark:bg-slate-700">另 {extraCount} 项</span>
           )}
         </div>
       )}

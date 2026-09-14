@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
-import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight, PiggyBank, Shapes, Repeat2, WalletCards } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronLeft, ChevronRight, PiggyBank, Search, Shapes, Repeat2, WalletCards } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import TransactionDetail from '../components/TransactionDetail';
+import TransactionSearch from '../components/TransactionSearch';
 import { formatMoney, formatDateHeader, getMonthStart, getMonthEnd } from '../utils/helpers';
 import type { Transaction } from '../types';
 import { isRefund, summarizeTransactions } from '../domain/transactionAccounting';
@@ -22,6 +23,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (route: AppRoute)
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showLedgerSwitch, setShowLedgerSwitch] = useState(false);
   const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
 
   const monthTransactions = useMemo(() => {
     if (!currentLedger) return [];
@@ -79,22 +81,31 @@ export default function HomePage({ onNavigate }: { onNavigate: (route: AppRoute)
   }
 
   return (
-    <div className="min-h-[calc(100svh-5.5rem)] bg-slate-50 pb-4">
+    <div className="min-h-[calc(100svh-5.5rem)] bg-slate-50 pb-4 dark:bg-slate-900">
       <header className="safe-top px-4 pb-3">
         <div className="mb-3 flex items-center justify-between">
           <button
             onClick={() => setShowLedgerSwitch(true)}
-            className="flex min-h-11 items-center gap-1 rounded-full px-2 text-slate-800 active:bg-slate-100"
+            className="flex min-h-11 items-center gap-1 rounded-full px-2 text-slate-800 active:bg-slate-100 dark:text-slate-100 dark:active:bg-slate-800"
           >
             <WalletCards size={18} className="text-amber-600" />
             <span className="font-semibold">{currentLedger.name}</span>
             <ChevronDown size={16} />
           </button>
 
-          <div className="flex items-center rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-100">
+          <div className="flex items-center gap-2">
+            <button
+              aria-label="搜索账单"
+              onClick={() => setShowSearch(true)}
+              className="icon-button !h-11 !w-11 bg-white shadow-sm ring-1 ring-slate-100 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700"
+            >
+              <Search size={18} />
+            </button>
+            <div className="flex items-center rounded-full bg-white p-1 shadow-sm ring-1 ring-slate-100 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700">
             <button aria-label="上一年" onClick={goPrevYear} className="icon-button !h-9 !w-9"><ChevronLeft size={17} /></button>
             <span className="min-w-14 text-center text-sm font-medium">{selectedDate.getFullYear()}</span>
             <button aria-label="下一年" onClick={goNextYear} className="icon-button !h-9 !w-9"><ChevronRight size={17} /></button>
+            </div>
           </div>
         </div>
 
@@ -133,38 +144,38 @@ export default function HomePage({ onNavigate }: { onNavigate: (route: AppRoute)
       </header>
 
       <section aria-label="快捷功能" className="grid grid-cols-4 gap-2 px-4 py-3">
-        <button onClick={() => onNavigate('/categories')} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]">
-          <Shapes size={21} className="text-amber-600" />
+        <button onClick={() => onNavigate('/categories')} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98] dark:text-slate-200">
+          <Shapes size={21} className="text-amber-600 dark:text-amber-400" />
           <span className="text-xs font-medium">分类</span>
         </button>
-        <button onClick={() => onNavigate('/recurring')} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]">
-          <Repeat2 size={21} className="text-amber-600" />
+        <button onClick={() => onNavigate('/recurring')} className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98] dark:text-slate-200">
+          <Repeat2 size={21} className="text-amber-600 dark:text-amber-400" />
           <span className="text-xs font-medium">周期</span>
         </button>
         <button
           onClick={() => onNavigate('/funds')}
-          className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]"
+          className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98] dark:text-slate-200"
         >
-          <CalendarClock size={21} className="text-amber-600" />
+          <CalendarClock size={21} className="text-amber-600 dark:text-amber-400" />
           <span className="text-xs font-medium">资金</span>
         </button>
         <button
           onClick={() => onNavigate('/savings')}
-          className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98]"
+          className="surface-card flex min-h-20 flex-col items-center justify-center gap-1.5 text-slate-700 active:scale-[0.98] dark:text-slate-200"
         >
-          <PiggyBank size={21} className="text-amber-600" />
+          <PiggyBank size={21} className="text-amber-600 dark:text-amber-400" />
           <span className="text-xs font-medium">攒钱</span>
         </button>
       </section>
 
       <section className="px-4 pb-4">
         <div className="mb-3 flex items-center justify-between">
-          <h1 className="text-base font-bold text-slate-900">本月明细</h1>
+          <h1 className="text-base font-bold text-slate-900 dark:text-slate-50">本月明细</h1>
           <span className="text-xs text-slate-400">{monthTransactions.length} 笔</span>
         </div>
         {groupedTransactions.length === 0 ? (
           <div className="surface-card py-12 text-center">
-            <div className="text-sm font-medium text-slate-500">本月还没有账单</div>
+            <div className="text-sm font-medium text-slate-500 dark:text-slate-300">本月还没有账单</div>
             <div className="mt-1 text-xs text-slate-400">点击下方 + 开始第一笔记录</div>
           </div>
         ) : (
@@ -173,14 +184,14 @@ export default function HomePage({ onNavigate }: { onNavigate: (route: AppRoute)
               const daySummary = summarizeTransactions(group.transactions);
               return (
               <div key={group.date}>
-                <div className="flex justify-between text-sm text-gray-500 mb-2">
+                <div className="flex justify-between text-sm text-gray-500 mb-2 dark:text-slate-400">
                   <span>{formatDateHeader(group.date)}</span>
                   <span>
-                    {daySummary.income > 0 && <span className="text-emerald-600">收入 +{formatMoney(daySummary.income)}</span>}
+                    {daySummary.income > 0 && <span className="text-emerald-600 dark:text-emerald-400">收入 +{formatMoney(daySummary.income)}</span>}
                     {daySummary.income > 0 && (daySummary.grossExpense > 0 || daySummary.refunds > 0) && <span> · </span>}
                     {daySummary.grossExpense > 0 && <span>支出 {formatMoney(daySummary.grossExpense)}</span>}
                     {daySummary.grossExpense > 0 && daySummary.refunds > 0 && <span> · </span>}
-                    {daySummary.refunds > 0 && <span className="text-amber-700">退款 +{formatMoney(daySummary.refunds)}</span>}
+                    {daySummary.refunds > 0 && <span className="text-amber-700 dark:text-amber-300">退款 +{formatMoney(daySummary.refunds)}</span>}
                   </span>
                 </div>
                 <div className="surface-card overflow-hidden">
@@ -190,7 +201,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (route: AppRoute)
                       <button
                         key={transaction.id}
                         onClick={() => setSelectedTransaction(transaction)}
-                        className="flex min-h-16 w-full items-center gap-3 border-b border-slate-100 px-4 py-3 transition-colors last:border-0 active:bg-slate-50"
+                        className="flex min-h-16 w-full items-center gap-3 border-b border-slate-100 px-4 py-3 transition-colors last:border-0 active:bg-slate-50 dark:border-slate-700/50 dark:active:bg-slate-800"
                       >
                         <div
                           className="w-10 h-10 rounded-full flex items-center justify-center text-white"
@@ -199,7 +210,7 @@ export default function HomePage({ onNavigate }: { onNavigate: (route: AppRoute)
                           <Icon name={category?.icon || 'more-horizontal'} size={18} />
                         </div>
                         <div className="flex-1 text-left">
-                          <div className="font-medium">{isRefund(transaction) ? '退款' : category?.name || '未分类'}</div>
+                          <div className="font-medium dark:text-slate-100">{isRefund(transaction) ? '退款' : category?.name || '未分类'}</div>
                           {transaction.note && (
                             <div className="text-xs text-gray-400 truncate">{transaction.note}</div>
                           )}
@@ -207,12 +218,12 @@ export default function HomePage({ onNavigate }: { onNavigate: (route: AppRoute)
                         <div
                           className={`font-semibold ${
                             isRefund(transaction)
-                              ? 'text-amber-700'
+                              ? 'text-amber-700 dark:text-amber-300'
                               : transaction.type === 'income'
-                              ? 'text-green-600'
+                              ? 'text-green-600 dark:text-green-400'
                               : transaction.type === 'expense'
-                              ? 'text-red-500'
-                              : 'text-blue-500'
+                              ? 'text-red-500 dark:text-red-400'
+                              : 'text-blue-500 dark:text-blue-400'
                           }`}
                         >
                           {transaction.type === 'income' ? '+' : transaction.type === 'expense' ? '-' : ''}
@@ -235,6 +246,8 @@ export default function HomePage({ onNavigate }: { onNavigate: (route: AppRoute)
           onClose={() => setSelectedTransaction(null)}
         />
       )}
+
+      {showSearch && <TransactionSearch onClose={() => setShowSearch(false)} />}
 
       {showLedgerSwitch && (
         <LedgerSwitch
@@ -276,11 +289,11 @@ function MonthPicker({
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="bottom-sheet" onClick={(event) => event.stopPropagation()}>
-        <div className="text-center text-gray-500 text-sm mb-4">选择月份</div>
+        <div className="text-center text-gray-500 text-sm mb-4 dark:text-slate-400">选择月份</div>
 
         <div className="flex items-center justify-between mb-4 px-4">
           <button onClick={() => setYear((y) => y - 1)}><ChevronLeft size={24} /></button>
-          <span className="text-lg font-medium">{year}年</span>
+          <span className="text-lg font-medium dark:text-slate-100">{year}年</span>
           <button onClick={() => setYear((y) => y + 1)}><ChevronRight size={24} /></button>
         </div>
 
@@ -292,7 +305,7 @@ function MonthPicker({
               className={`py-3 rounded-xl text-sm font-medium ${
                 year === selectedDate.getFullYear() && i === selectedMonth
                   ? 'bg-primary text-black'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-slate-700/60 dark:text-slate-200 dark:hover:bg-slate-700'
               }`}
             >
               {i + 1}月
@@ -302,7 +315,7 @@ function MonthPicker({
 
         <button
           onClick={onClose}
-          className="w-full py-3 text-gray-500 bg-gray-100 rounded-xl"
+          className="w-full py-3 text-gray-500 bg-gray-100 rounded-xl dark:bg-slate-700/60 dark:text-slate-300"
         >
           取消
         </button>
@@ -325,14 +338,14 @@ function LedgerSwitch({
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="bottom-sheet" onClick={(event) => event.stopPropagation()}>
-        <div className="text-center text-gray-500 text-sm mb-4">切换账本</div>
+        <div className="text-center text-gray-500 text-sm mb-4 dark:text-slate-400">切换账本</div>
         <div className="space-y-2 mb-4">
           {ledgers.map((ledger) => (
             <button
               key={ledger.id}
               onClick={() => onSelect(ledger.id)}
               className={`w-full flex items-center gap-3 p-3 rounded-xl ${
-                currentLedger?.id === ledger.id ? 'bg-primary/10' : 'hover:bg-gray-50'
+                currentLedger?.id === ledger.id ? 'bg-primary/10' : 'hover:bg-gray-50 dark:hover:bg-slate-800'
               }`}
             >
               <div
@@ -341,16 +354,16 @@ function LedgerSwitch({
               >
                 <Icon name={ledger.icon} size={18} />
               </div>
-              <span className="flex-1 text-left">{ledger.name}</span>
+              <span className="flex-1 text-left dark:text-slate-100">{ledger.name}</span>
               {currentLedger?.id === ledger.id && (
-                <span className="text-xs text-gray-500">当前</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400">当前</span>
               )}
             </button>
           ))}
         </div>
         <button
           onClick={onClose}
-          className="w-full py-3 text-gray-500 bg-gray-100 rounded-xl"
+          className="w-full py-3 text-gray-500 bg-gray-100 rounded-xl dark:bg-slate-700/60 dark:text-slate-300"
         >
           取消
         </button>

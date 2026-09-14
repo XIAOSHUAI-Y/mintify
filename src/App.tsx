@@ -72,21 +72,21 @@ function App() {
   };
 
   return (
-    <div className="min-h-[100svh] bg-slate-50 pb-24">
+    <div className="min-h-[100svh] bg-slate-50 pb-24 dark:bg-slate-900">
       <main className="min-h-[100svh]">{renderContent()}</main>
 
       <PwaUpdatePrompt />
 
       <nav
         aria-label="主要导航"
-        className="safe-bottom fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 pt-2 backdrop-blur-xl"
+        className="safe-bottom fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200/80 bg-white/95 px-2 pt-2 backdrop-blur-xl dark:border-slate-700/50 dark:bg-slate-900/95"
       >
         <div className="relative mx-auto grid max-w-[430px] grid-cols-5 items-end gap-1">
           <button
             onClick={() => navigate('/home')}
             aria-current={route === '/home' ? 'page' : undefined}
             className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${
-              route === '/home' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
+              route === '/home' ? 'bg-amber-50 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             <List size={21} />
@@ -97,7 +97,7 @@ function App() {
             onClick={() => navigate('/reports')}
             aria-current={route === '/reports' ? 'page' : undefined}
             className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${
-              route === '/reports' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
+              route === '/reports' ? 'bg-amber-50 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             <PieChart size={21} />
@@ -116,7 +116,7 @@ function App() {
             onClick={() => navigate('/budget')}
             aria-current={route === '/budget' ? 'page' : undefined}
             className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${
-              route === '/budget' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
+              route === '/budget' ? 'bg-amber-50 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             <WalletCards size={21} />
@@ -127,7 +127,7 @@ function App() {
             onClick={() => navigate('/settings')}
             aria-current={route === '/settings' ? 'page' : undefined}
             className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-xs transition-colors ${
-              route === '/settings' ? 'bg-amber-50 text-amber-700' : 'text-slate-500'
+              route === '/settings' ? 'bg-amber-50 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300' : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             <User size={21} />

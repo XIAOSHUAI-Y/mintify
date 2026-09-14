@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { ChevronRight, Download, Upload, Bell, BookOpen, Tag, RefreshCw, HardDrive } from 'lucide-react';
+import { ChevronRight, Download, Upload, Bell, BookOpen, Tag, RefreshCw, HardDrive, Moon, Sun, MonitorSmartphone } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
+import { useThemeMode, setThemeMode, type ThemeMode } from '../theme';
 import { useConfirmDeletion } from '../context/ConfirmDialogContext';
 import {
   exportData,
@@ -34,6 +35,7 @@ export default function SettingsPage() {
     runRecurringGenerator,
   } = useApp();
   const { checkForUpdates } = usePwaUpdate();
+  const themeMode = useThemeMode();
 
   const [showLedgers, setShowLedgers] = useState(false);
   const [showTags, setShowTags] = useState(false);
@@ -134,10 +136,10 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 pb-28">
+    <div className="min-h-screen bg-slate-50 px-4 pb-28 dark:bg-slate-900">
       <header className="safe-top mb-4">
         <h1 className="text-2xl font-bold tracking-tight">我的</h1>
-        <p className="mt-1 text-sm text-slate-500">管理账本、自动化与本地数据</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">管理账本、自动化与本地数据</p>
       </header>
 
       {/* Current Ledger */}
@@ -159,7 +161,7 @@ export default function SettingsPage() {
       )}
 
       <SectionTitle>账本与自动化</SectionTitle>
-      <div className="surface-card divide-y divide-slate-100 overflow-hidden">
+      <div className="surface-card divide-y divide-slate-100 overflow-hidden dark:divide-slate-700/50">
         <SettingsItem
           icon={<BookOpen size={20} />}
           title="账本管理"
@@ -183,13 +185,42 @@ export default function SettingsPage() {
         />
       </div>
 
+      <SectionTitle className="mt-6">外观</SectionTitle>
+      <div className="surface-card p-4">
+        <div className="mb-3 flex items-center gap-3">
+          <Moon size={20} className="text-yellow-600" />
+          <span className="dark:text-slate-100">主题</span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { value: 'system', label: '跟随系统', icon: <MonitorSmartphone size={17} /> },
+            { value: 'light', label: '浅色', icon: <Sun size={17} /> },
+            { value: 'dark', label: '深色', icon: <Moon size={17} /> },
+          ] as { value: ThemeMode; label: string; icon: React.ReactNode }[]).map((option) => (
+            <button
+              key={option.value}
+              onClick={() => setThemeMode(option.value)}
+              aria-pressed={themeMode === option.value}
+              className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-sm font-medium ${
+                themeMode === option.value
+                  ? 'bg-primary text-black'
+                  : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300'
+              }`}
+            >
+              {option.icon}
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <SectionTitle className="mt-6">提醒</SectionTitle>
       <div className="surface-card overflow-hidden">
         <div className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <Bell size={20} className="text-yellow-600" />
-              <span>每日记账提醒</span>
+              <span className="dark:text-slate-100">每日记账提醒</span>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input
@@ -198,7 +229,7 @@ export default function SettingsPage() {
                 onChange={(e) => void handleReminderToggle(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+              <div className="w-11 h-6 bg-gray-200 dark:bg-slate-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
             </label>
           </div>
           {settings.reminderEnabled && (
@@ -206,7 +237,7 @@ export default function SettingsPage() {
               type="time"
               value={settings.reminderTime}
               onChange={(e) => void handleReminderTimeChange(e.target.value)}
-              className="w-full p-2 border border-gray-200 rounded-lg"
+              className="w-full p-2 border border-gray-200 rounded-lg dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             />
           )}
         </div>
@@ -218,18 +249,18 @@ export default function SettingsPage() {
           <HardDrive size={20} className="text-yellow-600 mt-0.5" />
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <span className="font-medium">本地数据保护</span>
-              <span className={`rounded-full px-2 py-1 text-xs font-medium ${storageStatus.persisted ? 'bg-emerald-50 text-emerald-700' : 'bg-orange-50 text-orange-600'}`}>
+              <span className="font-medium dark:text-slate-100">本地数据保护</span>
+              <span className={`rounded-full px-2 py-1 text-xs font-medium ${storageStatus.persisted ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300' : 'bg-orange-50 text-orange-600 dark:bg-orange-400/10 dark:text-orange-300'}`}>
                 {storageStatus.persisted ? '持久化已启用' : '普通存储'}
               </span>
             </div>
-            <div className="text-xs text-gray-500 mt-1">
+            <div className="text-xs text-gray-500 mt-1 dark:text-slate-400">
               已使用 {formatBytes(storageStatus.usage)} / {formatBytes(storageStatus.quota)}
             </div>
             {!storageStatus.persisted && storageStatus.supported && (
               <button
                 onClick={async () => setStorageStatus(await requestPersistentStorage())}
-                className="mt-3 min-h-10 rounded-xl border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-800"
+                className="mt-3 min-h-10 rounded-xl border border-amber-200 bg-amber-50 px-3 text-sm font-medium text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300"
               >
                 请求持久化存储
               </button>
@@ -238,7 +269,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="surface-card mt-3 divide-y divide-slate-100 overflow-hidden">
+      <div className="surface-card mt-3 divide-y divide-slate-100 overflow-hidden dark:divide-slate-700/50">
         <SettingsItem
           icon={<Download size={20} />}
           title="导出数据"
@@ -247,12 +278,12 @@ export default function SettingsPage() {
             : '尚未备份，建议立即导出'}
           onClick={handleExport}
         />
-        <label className="flex min-h-16 cursor-pointer items-center justify-between p-4 active:bg-slate-50">
+        <label className="flex min-h-16 cursor-pointer items-center justify-between p-4 active:bg-slate-50 dark:active:bg-slate-800">
           <div className="flex items-center gap-3">
             <Upload size={20} className="text-yellow-600" />
             <div>
-              <div className="font-medium">导入数据</div>
-              <div className="text-sm text-gray-500">从备份文件恢复</div>
+              <div className="font-medium dark:text-slate-100">导入数据</div>
+              <div className="text-sm text-gray-500 dark:text-slate-400">从备份文件恢复</div>
             </div>
           </div>
           <input type="file" accept=".json,application/json" className="hidden" onChange={handleImportFile} />
@@ -263,18 +294,18 @@ export default function SettingsPage() {
       <SectionTitle className="mt-6">关于</SectionTitle>
       <div className="surface-card p-4 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-gray-500">同步状态</span>
-          <span className="text-sm text-gray-600">{syncStatus}</span>
+          <span className="text-gray-500 dark:text-slate-400">同步状态</span>
+          <span className="text-sm text-gray-600 dark:text-slate-300">{syncStatus}</span>
         </div>
         <button
           onClick={() => void checkForUpdates()}
-          className="mt-2 flex min-h-12 w-full items-center justify-between rounded-xl text-left active:bg-slate-50"
+          className="mt-2 flex min-h-12 w-full items-center justify-between rounded-xl text-left active:bg-slate-50 dark:active:bg-slate-800"
         >
           <span>
-            <span className="block text-gray-500">版本</span>
+            <span className="block text-gray-500 dark:text-slate-400">版本</span>
             <span className="block text-xs text-slate-400">点击检查更新</span>
           </span>
-          <span className="flex items-center gap-1 text-sm text-gray-600">
+          <span className="flex items-center gap-1 text-sm text-gray-600 dark:text-slate-300">
             v{APP_VERSION}
             <ChevronRight size={16} className="text-gray-400" />
           </span>
@@ -285,10 +316,10 @@ export default function SettingsPage() {
       {showTags && <TagManager onClose={() => setShowTags(false)} />}
       {pendingImport && (
         <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5">
-            <div className="font-semibold text-center">确认恢复备份</div>
-            <div className="text-sm text-gray-500 mt-2 break-all text-center">{pendingImport.fileName}</div>
-            <div className="mt-4 p-3 bg-gray-50 rounded-xl text-sm space-y-1">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 dark:bg-slate-800">
+            <div className="font-semibold text-center dark:text-slate-100">确认恢复备份</div>
+            <div className="text-sm text-gray-500 mt-2 break-all text-center dark:text-slate-400">{pendingImport.fileName}</div>
+            <div className="mt-4 p-3 bg-gray-50 rounded-xl text-sm space-y-1 dark:bg-slate-700/60 dark:text-slate-200">
               <div>账本：{pendingImport.preview.ledgers} 个</div>
               <div>交易：{pendingImport.preview.transactions} 条</div>
               <div>分类：{pendingImport.preview.categories} 个</div>
@@ -297,14 +328,14 @@ export default function SettingsPage() {
               <div>攒钱计划：{pendingImport.preview.savingsPlans} 个</div>
               <div>结余流水：{pendingImport.preview.reserveEntries} 条</div>
             </div>
-            <div className="text-xs text-orange-600 mt-3">
+            <div className="text-xs text-orange-600 mt-3 dark:text-orange-300">
               覆盖恢复会先清除当前数据；操作在同一事务中完成，失败时自动回滚。
             </div>
             <div className="grid grid-cols-2 gap-2 mt-4">
               <button
                 disabled={isImporting}
                 onClick={() => void handleImport('merge')}
-                className="py-3 bg-gray-100 rounded-xl disabled:opacity-50"
+                className="py-3 bg-gray-100 rounded-xl disabled:opacity-50 dark:bg-slate-700/60 dark:text-slate-200"
               >
                 合并导入
               </button>
@@ -319,7 +350,7 @@ export default function SettingsPage() {
             <button
               disabled={isImporting}
               onClick={() => setPendingImport(null)}
-              className="w-full mt-2 py-2 text-gray-500 disabled:opacity-50"
+              className="w-full mt-2 py-2 text-gray-500 disabled:opacity-50 dark:text-slate-400"
             >
               取消
             </button>
@@ -351,13 +382,13 @@ function SettingsItem({
   return (
     <button
       onClick={onClick}
-      className="flex min-h-16 w-full items-center justify-between p-4 active:bg-slate-50"
+      className="flex min-h-16 w-full items-center justify-between p-4 active:bg-slate-50 dark:active:bg-slate-800"
     >
       <div className="flex items-center gap-3">
         <div className="text-yellow-600">{icon}</div>
         <div className="text-left">
-          <div className="font-medium">{title}</div>
-          <div className="text-sm text-gray-500">{subtitle}</div>
+          <div className="font-medium dark:text-slate-100">{title}</div>
+          <div className="text-sm text-gray-500 dark:text-slate-400">{subtitle}</div>
         </div>
       </div>
       <ChevronRight size={20} className="text-gray-400" />
@@ -408,7 +439,7 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
   return (
     <div className="mobile-overlay">
       <div className="mobile-toolbar">
-        <button onClick={onClose} className="min-h-11 rounded-full px-2 text-sm text-slate-600">返回</button>
+        <button onClick={onClose} className="min-h-11 rounded-full px-2 text-sm text-slate-600 dark:text-slate-300">返回</button>
         <div className="font-semibold">账本管理</div>
         <button onClick={() => setShowAdd(true)} className="min-h-11 rounded-full px-2 text-sm font-semibold text-amber-700">新增</button>
       </div>
@@ -428,7 +459,7 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
               >
                 <Icon name={ledger.icon} size={18} />
               </div>
-              <span className="flex-1">{ledger.name}</span>
+              <span className="flex-1 dark:text-slate-100">{ledger.name}</span>
               <button
                 onClick={() => setCurrentLedger(ledger.id)}
                 className="text-sm px-3 py-1 bg-primary rounded-lg"
@@ -441,7 +472,7 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
                   setName(ledger.name);
                   setShowAdd(true);
                 }}
-                className="text-sm text-gray-500"
+                className="text-sm text-gray-500 dark:text-slate-400"
               >
                 编辑
               </button>
@@ -460,14 +491,14 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
 
       {showAdd && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-4">
-            <div className="font-medium text-center mb-4">{editingLedger ? '编辑账本' : '新建账本'}</div>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-4 dark:bg-slate-800">
+            <div className="font-medium text-center mb-4 dark:text-slate-100">{editingLedger ? '编辑账本' : '新建账本'}</div>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="账本名称"
-              className="w-full p-3 border border-gray-200 rounded-lg mb-4"
+              className="w-full p-3 border border-gray-200 rounded-lg mb-4 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-100"
             />
             <div className="flex gap-3">
               <button
@@ -476,7 +507,7 @@ function LedgerManager({ onClose }: { onClose: () => void }) {
                   setEditingLedger(null);
                   setName('');
                 }}
-                className="flex-1 py-3 bg-gray-100 rounded-xl"
+                className="flex-1 py-3 bg-gray-100 rounded-xl dark:bg-slate-700/60 dark:text-slate-200"
               >
                 取消
               </button>
@@ -522,7 +553,7 @@ function TagManager({ onClose }: { onClose: () => void }) {
   return (
     <div className="mobile-overlay">
       <div className="mobile-toolbar">
-        <button onClick={onClose} className="min-h-11 rounded-full px-2 text-sm text-slate-600">返回</button>
+        <button onClick={onClose} className="min-h-11 rounded-full px-2 text-sm text-slate-600 dark:text-slate-300">返回</button>
         <div className="font-semibold">标签管理</div>
         <div />
       </div>
@@ -534,7 +565,7 @@ function TagManager({ onClose }: { onClose: () => void }) {
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
             placeholder="新标签"
-            className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-3 outline-none focus:border-amber-400"
+            className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white p-3 outline-none focus:border-amber-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           />
           <button onClick={() => void addTag()} className="min-h-11 rounded-xl bg-primary px-4 font-medium">添加</button>
         </div>
@@ -543,7 +574,7 @@ function TagManager({ onClose }: { onClose: () => void }) {
           {tags.map((tag) => (
             <div
               key={tag}
-              className="flex min-h-10 items-center gap-1 rounded-full bg-white px-3 text-sm ring-1 ring-slate-200"
+              className="flex min-h-10 items-center gap-1 rounded-full bg-white px-3 text-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"
             >
               {tag}
               <button onClick={() => void removeTag(tag)} className="text-gray-400 hover:text-red-500">×</button>

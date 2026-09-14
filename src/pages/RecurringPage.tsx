@@ -28,16 +28,16 @@ export default function RecurringPage({ onClose }: RecurringPageProps) {
   return (
     <div className="mobile-overlay">
       <div className="mobile-toolbar">
-        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600"><X size={20} /></button>
+        <button aria-label="返回明细" onClick={onClose} className="icon-button text-slate-600 dark:text-slate-300"><X size={20} /></button>
         <div className="font-semibold">周期记账</div>
-        <button aria-label="新增周期记账" onClick={() => setShowForm(true)} className="icon-button"><Plus size={22} className="text-amber-700" /></button>
+        <button aria-label="新增周期记账" onClick={() => setShowForm(true)} className="icon-button"><Plus size={22} className="text-amber-700 dark:text-amber-300" /></button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-8">
         {sortedRules.length === 0 ? (
           <div className="surface-card mt-8 px-6 py-10 text-center">
             <Repeat2EmptyState />
-            <div className="mt-4 text-sm font-semibold text-slate-700">还没有周期记账规则</div>
+            <div className="mt-4 text-sm font-semibold text-slate-700 dark:text-slate-200">还没有周期记账规则</div>
             <div className="mt-1 text-xs leading-5 text-slate-400">房租、工资等固定账单，设置一次即可按期生成</div>
             <button onClick={() => setShowForm(true)} className="mt-5 rounded-xl bg-primary px-5 py-3 text-sm font-semibold">创建第一条规则</button>
           </div>
@@ -49,7 +49,7 @@ export default function RecurringPage({ onClose }: RecurringPageProps) {
                 <button
                   key={rule.id}
                   onClick={() => setEditingRule(rule)}
-                  className="w-full flex items-center gap-3 p-4 bg-white border border-gray-100 rounded-xl text-left active:bg-gray-50"
+                  className="w-full flex items-center gap-3 p-4 bg-white border border-gray-100 rounded-xl text-left active:bg-gray-50 dark:bg-slate-800 dark:border-slate-700/50 dark:active:bg-slate-700"
                 >
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center text-white"
@@ -59,13 +59,13 @@ export default function RecurringPage({ onClose }: RecurringPageProps) {
                   </div>
                   <div className="flex-1">
                     <div className="font-medium">{category?.name || '未分类'}</div>
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-500 dark:text-slate-400">
                       {FREQUENCY_LABELS[rule.frequency]} · 从 {formatShortDate(rule.startDate)} 开始
                     </div>
                   </div>
                   <div
                     className={`font-semibold ${
-                      rule.type === 'income' ? 'text-green-600' : rule.type === 'expense' ? 'text-red-500' : 'text-blue-500'
+                      rule.type === 'income' ? 'text-green-600 dark:text-green-400' : rule.type === 'expense' ? 'text-red-500 dark:text-red-400' : 'text-blue-500 dark:text-blue-400'
                     }`}
                   >
                     {rule.type === 'income' ? '+' : rule.type === 'expense' ? '-' : ''}
@@ -116,7 +116,7 @@ export default function RecurringPage({ onClose }: RecurringPageProps) {
 
 function Repeat2EmptyState() {
   return (
-    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 dark:bg-amber-400/10 dark:text-amber-300">
       <Repeat2 size={26} />
     </div>
   );
@@ -182,15 +182,15 @@ function RecurringForm({
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-4 max-h-[80vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl w-full max-w-sm p-4 max-h-[80vh] overflow-y-auto dark:bg-slate-800">
         <div className="font-medium text-center mb-4">{rule ? '编辑周期记账' : '新建周期记账'}</div>
 
-        <div className="flex bg-gray-100 rounded-lg p-1 mb-4">
+        <div className="flex bg-gray-100 rounded-lg p-1 mb-4 dark:bg-slate-700/60">
           {(['expense', 'income', 'transfer'] as const).map((t) => (
             <button
               key={t}
               onClick={() => setType(t)}
-              className={`flex-1 py-2 rounded-md text-sm ${type === t ? 'bg-white shadow-sm' : 'text-gray-500'}`}
+              className={`flex-1 py-2 rounded-md text-sm ${type === t ? 'bg-white shadow-sm dark:bg-slate-600' : 'text-gray-500 dark:text-slate-400'}`}
             >
               {t === 'expense' ? '支出' : t === 'income' ? '收入' : '转账'}
             </button>
@@ -202,13 +202,13 @@ function RecurringForm({
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="金额"
-          className="w-full p-3 border border-gray-200 rounded-lg mb-3"
+          className="w-full p-3 border border-gray-200 rounded-lg mb-3 dark:border-slate-600 dark:text-slate-100"
         />
 
         <select
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
-          className="w-full p-3 border border-gray-200 rounded-lg mb-3"
+          className="w-full p-3 border border-gray-200 rounded-lg mb-3 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
         >
           <option value="">选择分类</option>
           {filteredCategories.map((c) => (
@@ -219,7 +219,7 @@ function RecurringForm({
         <select
           value={frequency}
           onChange={(e) => setFrequency(e.target.value as RecurringRule['frequency'])}
-          className="w-full p-3 border border-gray-200 rounded-lg mb-3"
+          className="w-full p-3 border border-gray-200 rounded-lg mb-3 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
         >
           <option value="daily">每天</option>
           <option value="weekly">每周</option>
@@ -228,21 +228,21 @@ function RecurringForm({
         </select>
 
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-sm text-gray-500">每</span>
+          <span className="text-sm text-gray-500 dark:text-slate-400">每</span>
           <input
             type="number"
             value={interval}
             onChange={(e) => setInterval(e.target.value)}
-            className="flex-1 p-3 border border-gray-200 rounded-lg"
+            className="flex-1 p-3 border border-gray-200 rounded-lg dark:border-slate-600 dark:text-slate-100"
           />
-          <span className="text-sm text-gray-500">{FREQUENCY_LABELS[frequency]}</span>
+          <span className="text-sm text-gray-500 dark:text-slate-400">{FREQUENCY_LABELS[frequency]}</span>
         </div>
 
         <input
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          className="w-full p-3 border border-gray-200 rounded-lg mb-3"
+          className="w-full p-3 border border-gray-200 rounded-lg mb-3 dark:border-slate-600 dark:text-slate-100"
         />
 
         <div className="flex items-center gap-2 mb-3">
@@ -260,7 +260,7 @@ function RecurringForm({
             type="date"
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
-            className="w-full p-3 border border-gray-200 rounded-lg mb-3"
+            className="w-full p-3 border border-gray-200 rounded-lg mb-3 dark:border-slate-600 dark:text-slate-100"
           />
         )}
 
@@ -269,13 +269,13 @@ function RecurringForm({
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder="备注（可选）"
-          className="w-full p-3 border border-gray-200 rounded-lg mb-4"
+          className="w-full p-3 border border-gray-200 rounded-lg mb-4 dark:border-slate-600 dark:text-slate-100"
         />
 
         <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 rounded-xl">取消</button>
+          <button onClick={onCancel} className="flex-1 py-3 bg-gray-100 rounded-xl dark:bg-slate-700/60">取消</button>
           {onDelete && (
-            <button onClick={() => void onDelete()} className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl">删除</button>
+            <button onClick={() => void onDelete()} className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl dark:bg-red-400/10 dark:text-red-300">删除</button>
           )}
           <button onClick={handleSave} className="flex-1 py-3 bg-primary rounded-xl font-medium">保存</button>
         </div>
