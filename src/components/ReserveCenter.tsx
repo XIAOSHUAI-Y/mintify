@@ -45,7 +45,7 @@ export default function ReserveCenter({
     addReserveEntry,
   } = useApp();
   const [managerOpen, setManagerOpen] = useState(standalone);
-  const [dialog, setDialog] = useState<'month-all' | 'month-custom' | 'plan' | 'transfer' | 'withdraw' | 'delete-plan' | null>(null);
+  const [dialog, setDialog] = useState<'month-all' | 'month-custom' | 'plan' | 'transfer' | 'withdraw' | 'withdraw-general' | 'delete-plan' | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState('');
   const [deleteDestinationKey, setDeleteDestinationKey] = useState('general');
   const [amount, setAmount] = useState('');
@@ -131,6 +131,12 @@ export default function ReserveCenter({
     setDialog('withdraw');
   };
 
+  const openGeneralWithdrawal = () => {
+    setAmount('');
+    setError('');
+    setDialog('withdraw-general');
+  };
+
   const saveMonthTransfer = async () => {
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) return setError('请输入大于 0 的金额');
@@ -209,6 +215,29 @@ export default function ReserveCenter({
         amount: value,
         sourceType: 'plan',
         sourcePlanId: selectedPlanId,
+        targetType: 'budget',
+        targetYearMonth: currentMonth,
+        note: `划入 ${Number(currentMonth.slice(5))} 月预算`,
+        occurredAt: now,
+        createdAt: now,
+      });
+      resetDialog();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '划出失败，请重试');
+    }
+  };
+
+  const withdrawGeneralToBudget = async () => {
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) return setError('请输入大于 0 的金额');
+    if (value > balances.general) return setError(`最多可划出 ${formatMoney(balances.general)}`);
+    try {
+      const now = Date.now();
+      await addReserveEntry({
+        id: generateId(),
+        ledgerId: currentLedger.id,
+        amount: value,
+        sourceType: 'general',
         targetType: 'budget',
         targetYearMonth: currentMonth,
         note: `划入 ${Number(currentMonth.slice(5))} 月预算`,
@@ -350,6 +379,14 @@ export default function ReserveCenter({
                 <span className="flex items-center gap-2 text-sm font-medium"><Landmark size={17} /> 通用结余池</span>
                 <span className="font-semibold">{formatMoney(balances.general)}</span>
               </div>
+              <button
+                onClick={openGeneralWithdrawal}
+                disabled={balances.general <= 0 || !hasCurrentOverallBudget}
+                className="mt-2 flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl bg-white/55 px-3 text-xs font-semibold text-amber-900 active:bg-white/80 disabled:text-amber-900/40"
+              >
+                <ArrowDownLeft size={16} />
+                {!hasCurrentOverallBudget ? '先设置本月预算' : '划到本月预算'}
+              </button>
             </section>
 
             <div className="mb-2 mt-6 flex items-center justify-between">
@@ -535,6 +572,23 @@ export default function ReserveCenter({
           error={error}
           onCancel={resetDialog}
           onConfirm={() => void withdrawPlanToBudget()}
+        />
+      )}
+
+      {dialog === 'withdraw-general' && (
+        <AmountDialog
+          title={`划到 ${Number(currentMonth.slice(5))} 月预算`}
+          amountLabel="划出金额"
+          confirmLabel="确认划到预算"
+          hint={`从通用结余池划出，可用 ${formatMoney(balances.general)}。这是内部划转，不计入收入或支出，会同步增加本月有效预算。`}
+          amount={amount}
+          onAmountChange={(value) => {
+            setAmount(value);
+            setError('');
+          }}
+          error={error}
+          onCancel={resetDialog}
+          onConfirm={() => void withdrawGeneralToBudget()}
         />
       )}
 

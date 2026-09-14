@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deleteDB } from 'idb';
+import { getYearMonth } from '../utils/helpers';
 import type {
   Budget,
   Category,
@@ -451,6 +452,9 @@ describe('结余流水写入校验', () => {
   });
 
   it('计划资金只能划入已经设置的本月总预算', async () => {
+    const now = new Date();
+    const currentMonth = getYearMonth(now.getTime());
+    const previousMonth = getYearMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime());
     const plan: SavingsPlan = {
       id: 'travel',
       ledgerId: 'daily-ledger',
@@ -461,20 +465,20 @@ describe('结余流水写入校验', () => {
     };
     await saveSavingsPlan(plan);
     await saveBudget({
-      id: 'overall-jul',
+      id: 'overall-previous',
       ledgerId: plan.ledgerId,
       amount: 500,
       period: 'monthly',
-      yearMonth: '2026-07',
+      yearMonth: previousMonth,
       includeOverall: true,
       createdAt: 1,
     });
     await saveReserveEntry({
-      id: 'july-to-travel',
+      id: 'previous-to-travel',
       ledgerId: plan.ledgerId,
       amount: 300,
       sourceType: 'budget',
-      sourceYearMonth: '2026-07',
+      sourceYearMonth: previousMonth,
       targetType: 'plan',
       targetPlanId: plan.id,
       note: '',
@@ -483,13 +487,13 @@ describe('结余流水写入校验', () => {
     });
 
     await expect(saveReserveEntry({
-      id: 'travel-to-august',
+      id: 'travel-to-current',
       ledgerId: plan.ledgerId,
       amount: 100,
       sourceType: 'plan',
       sourcePlanId: plan.id,
       targetType: 'budget',
-      targetYearMonth: '2026-08',
+      targetYearMonth: currentMonth,
       note: '',
       occurredAt: 2,
       createdAt: 2,
@@ -497,6 +501,9 @@ describe('结余流水写入校验', () => {
   });
 
   it('保存计划划回本月预算的内部流水', async () => {
+    const now = new Date();
+    const currentMonth = getYearMonth(now.getTime());
+    const previousMonth = getYearMonth(new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime());
     const plan: SavingsPlan = {
       id: 'travel',
       ledgerId: 'daily-ledger',
@@ -506,7 +513,7 @@ describe('结余流水写入校验', () => {
       createdAt: 1,
     };
     await saveSavingsPlan(plan);
-    for (const [id, yearMonth] of [['overall-jul', '2026-07'], ['overall-aug', '2026-08']] as const) {
+    for (const [id, yearMonth] of [['overall-previous', previousMonth], ['overall-current', currentMonth]] as const) {
       await saveBudget({
         id,
         ledgerId: plan.ledgerId,
@@ -518,11 +525,11 @@ describe('结余流水写入校验', () => {
       });
     }
     await saveReserveEntry({
-      id: 'july-to-travel',
+      id: 'previous-to-travel',
       ledgerId: plan.ledgerId,
       amount: 300,
       sourceType: 'budget',
-      sourceYearMonth: '2026-07',
+      sourceYearMonth: previousMonth,
       targetType: 'plan',
       targetPlanId: plan.id,
       note: '',
@@ -531,14 +538,14 @@ describe('结余流水写入校验', () => {
     });
 
     const withdrawal: ReserveEntry = {
-      id: 'travel-to-august',
+      id: 'travel-to-current',
       ledgerId: plan.ledgerId,
       amount: 100,
       sourceType: 'plan',
       sourcePlanId: plan.id,
       targetType: 'budget',
-      targetYearMonth: '2026-08',
-      note: '划入 8 月预算',
+      targetYearMonth: currentMonth,
+      note: `划入 ${Number(currentMonth.slice(5))} 月预算`,
       occurredAt: 2,
       createdAt: 2,
     };
