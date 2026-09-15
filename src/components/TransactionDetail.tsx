@@ -3,6 +3,7 @@ import { X, Trash2, Link2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
 import { formatMoney, formatShortDate } from '../utils/helpers';
+import { getMoodMeta } from '../domain/mood';
 import TransactionForm from './TransactionForm';
 import type { Transaction } from '../types';
 
@@ -94,6 +95,12 @@ export default function TransactionDetail({ transaction, onClose }: TransactionD
             <span className="text-gray-500 dark:text-slate-400">日期</span>
             <span>{formatShortDate(transaction.occurredAt)}</span>
           </div>
+          {transaction.mood && (
+            <div className="flex justify-between py-2 border-b border-gray-50 dark:border-slate-700/50">
+              <span className="text-gray-500 dark:text-slate-400">心情</span>
+              <span>{getMoodMeta(transaction.mood).emoji} {getMoodMeta(transaction.mood).label} · {getMoodMeta(transaction.mood).description}</span>
+            </div>
+          )}
           {transaction.note && (
             <div className="flex justify-between py-2 border-b border-gray-50 dark:border-slate-700/50">
               <span className="text-gray-500 dark:text-slate-400">备注</span>

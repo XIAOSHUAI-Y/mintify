@@ -841,7 +841,8 @@ function parseBackup(json: string): BackupData {
     && hasNumber(item, 'occurredAt')
     && hasNumber(item, 'createdAt')
     && (item.kind === undefined || item.kind === 'refund')
-    && (item.kind !== 'refund' || hasString(item, 'linkedExpenseTransactionId')));
+    && (item.kind !== 'refund' || hasString(item, 'linkedExpenseTransactionId'))
+    && (item.mood === undefined || item.mood === 'necessary' || item.mood === 'happy' || item.mood === 'regret'));
   validateRefundRelations(transactions);
   const budgets = validateRecords<Budget>(rawData.budgets, '预算', (item) =>
     hasString(item, 'id') && hasString(item, 'ledgerId') && hasNumber(item, 'amount'));

@@ -6,10 +6,11 @@ import { Icon } from './Icon';
 import HorizontalScrollArea from './HorizontalScrollArea';
 import { generateId, formatMoney, formatShortDate, getYearMonth } from '../utils/helpers';
 import { PRESET_TAGS } from '../data/seed';
-import type { Transaction } from '../types';
+import type { Transaction, TransactionMood } from '../types';
 import { getRemainingRefundableAmount } from '../domain/transactionAccounting';
 import { calculateMonthlyBudgetAvailability } from '../domain/reserveLedger';
 import { buildBudgetAlerts } from '../domain/budgetAlerts';
+import { MOOD_OPTIONS } from '../domain/mood';
 import { showToast } from '../utils/toast';
 
 type EntryMode = Transaction['type'] | 'saving';
@@ -38,6 +39,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   const [occurredAt, setOccurredAt] = useState(editingTransaction?.occurredAt || Date.now());
   const [note, setNote] = useState(editingTransaction?.note || '');
   const [tags, setTags] = useState<string[]>(editingTransaction?.tags || []);
+  const [mood, setMood] = useState<TransactionMood | undefined>(editingTransaction?.mood);
   const [photo, setPhoto] = useState(editingTransaction?.photo || '');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [draftOccurredAt, setDraftOccurredAt] = useState(occurredAt);
@@ -194,6 +196,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       type,
       note,
       tags,
+      mood: type === 'expense' ? mood : undefined,
       photo,
       occurredAt,
       createdAt: editingTransaction?.createdAt || Date.now(),
@@ -292,6 +295,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
               onClick={() => {
                 setType(t);
                 if (t !== 'income') setIncomeMode('standard');
+                if (t !== 'expense') setMood(undefined);
                 setSaveError('');
               }}
               aria-pressed={type === t}
@@ -304,6 +308,36 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
           ))}
         </div>
       </div>
+
+      {type === 'expense' && (
+        <div className="mb-3 px-4">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs text-slate-400">这笔钱花得怎么样（可不选）</span>
+            {mood && (
+              <button onClick={() => setMood(undefined)} className="text-xs text-slate-400 active:text-slate-600">
+                清除
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {MOOD_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setMood(mood === option.value ? undefined : option.value)}
+                aria-pressed={mood === option.value}
+                className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl border text-sm font-medium transition-colors ${
+                  mood === option.value
+                    ? 'border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300'
+                    : 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                }`}
+              >
+                <span className="text-base">{option.emoji}</span>
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {type === 'income' && (
         <div className="mb-3 px-4">

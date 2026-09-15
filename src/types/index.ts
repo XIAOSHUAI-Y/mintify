@@ -1,4 +1,6 @@
 export type TransactionType = 'income' | 'expense' | 'transfer';
+/** 支出心情：事后回顾「后悔消费」占比，帮助识别冲动消费。 */
+export type TransactionMood = 'necessary' | 'happy' | 'regret';
 export type TransactionKind = 'refund';
 export type BudgetPeriod = 'monthly' | 'yearly';
 export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -50,6 +52,8 @@ export interface Transaction {
   type: TransactionType;
   note: string;
   tags: string[];
+  /** 仅支出使用；不填代表没有标记心情。 */
+  mood?: TransactionMood;
   photo?: string; // base64
   occurredAt: number;
   createdAt: number;

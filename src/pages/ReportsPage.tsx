@@ -6,6 +6,8 @@ import TrendChart from '../components/charts/TrendChart';
 import AnnualSummary from '../components/charts/AnnualSummary';
 import BudgetUsageChart from '../components/charts/BudgetUsageChart';
 import TagStatsChart from '../components/charts/TagStatsChart';
+import InsightsCarousel from '../components/charts/InsightsCarousel';
+import MoodStatsCard from '../components/charts/MoodStatsCard';
 import { formatMoney } from '../utils/helpers';
 import { summarizeTransactions } from '../domain/transactionAccounting';
 
@@ -25,6 +27,9 @@ export default function ReportsPage() {
   const summary = useMemo(() => {
     return summarizeTransactions(yearlyTransactions);
   }, [yearlyTransactions]);
+
+  const currentYear = new Date().getFullYear();
+  const pieYearMonth = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 pb-28 dark:bg-slate-900">
@@ -61,11 +66,23 @@ export default function ReportsPage() {
         </div>
       </section>
 
+      {selectedYear === currentYear && currentLedger && (
+        <InsightsCarousel
+          transactions={transactions.filter((transaction) => transaction.ledgerId === currentLedger.id)}
+          categories={categories}
+        />
+      )}
+
       <MonthlyPieChart
         transactions={transactions.filter((transaction) => transaction.ledgerId === currentLedger?.id)}
         categories={categories}
-        yearMonth={`${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`}
+        yearMonth={pieYearMonth}
         title={`${selectedMonth + 1} 月支出构成`}
+      />
+
+      <MoodStatsCard
+        transactions={transactions.filter((transaction) => transaction.ledgerId === currentLedger?.id)}
+        yearMonth={pieYearMonth}
       />
 
       <TrendChart transactions={yearlyTransactions} year={selectedYear} />
