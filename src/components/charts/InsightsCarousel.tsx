@@ -1,7 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { buildInsights } from '../../domain/insights';
 import type { Category, Transaction } from '../../types';
+
+const AUTO_PLAY_INTERVAL = 5000;
 
 /**
  * 洞察描述的是“当下”的数据（本月、近 90 天），浏览历史年份时不出示，避免口径错位。
@@ -15,10 +17,25 @@ export default function InsightsCarousel({
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  // 用户手动滑动后暂停一轮自动播放，避免手指还在看就被切走。
+  const lastManualScrollRef = useRef(0);
   const insights = useMemo(
     () => buildInsights({ transactions, categories, now: Date.now() }),
     [categories, transactions],
   );
+
+  useEffect(() => {
+    if (insights.length <= 1) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const timer = window.setInterval(() => {
+      const element = scrollRef.current;
+      if (!element || document.visibilityState !== 'visible') return;
+      if (Date.now() - lastManualScrollRef.current < AUTO_PLAY_INTERVAL) return;
+      const next = (activeIndex + 1) % insights.length;
+      element.scrollTo({ left: next * element.clientWidth, behavior: 'smooth' });
+    }, AUTO_PLAY_INTERVAL);
+    return () => window.clearInterval(timer);
+  }, [activeIndex, insights.length]);
 
   if (insights.length === 0) return null;
 
@@ -33,6 +50,9 @@ export default function InsightsCarousel({
       </div>
       <div
         ref={scrollRef}
+        onPointerDown={() => {
+          lastManualScrollRef.current = Date.now();
+        }}
         onScroll={(event) => {
           const element = event.currentTarget;
           setActiveIndex(Math.round(element.scrollLeft / element.clientWidth));
