@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronRight, Download, Upload, Bell, BookOpen, Tag, RefreshCw, HardDrive, Moon, Sun, MonitorSmartphone } from 'lucide-react';
+import { ChevronRight, Download, Upload, Bell, BookOpen, Tag, RefreshCw, HardDrive, Moon, Sun, MonitorSmartphone, FolderOpen } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import { useThemeMode, setThemeMode, type ThemeMode } from '../theme';
@@ -21,6 +21,7 @@ import {
 } from '../storage/persistence';
 import { generateId } from '../utils/helpers';
 import type { AppSettings, Ledger } from '../types';
+import type { AppRoute } from '../routing/hashRoute';
 
 interface PendingImport {
   fileName: string;
@@ -28,7 +29,7 @@ interface PendingImport {
   preview: BackupPreview;
 }
 
-export default function SettingsPage() {
+export default function SettingsPage({ onNavigate }: { onNavigate: (route: AppRoute) => void }) {
   const {
     currentLedger,
     ledgers,
@@ -173,6 +174,12 @@ export default function SettingsPage() {
           title="标签管理"
           subtitle="管理常用标签"
           onClick={() => setShowTags(true)}
+        />
+        <SettingsItem
+          icon={<FolderOpen size={20} />}
+          title="项目归集"
+          subtitle="把旅行、装修等跨月开销归到一处"
+          onClick={() => onNavigate('/projects')}
         />
         <SettingsItem
           icon={<RefreshCw size={20} />}

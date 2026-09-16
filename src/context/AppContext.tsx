@@ -5,6 +5,7 @@ import type {
   FundCategory,
   FundTransaction,
   Ledger,
+  Project,
   RecurringRule,
   ReserveEntry,
   SavingsPlan,
@@ -19,6 +20,7 @@ import {
   deleteFundTransaction,
   deleteFundCategory,
   deleteLedger,
+  deleteProject,
   deleteRecurringRule,
   deleteTransaction,
   ensureMonthlyBudgets,
@@ -31,6 +33,7 @@ import {
   getFundCategories,
   getLedgers,
   linkExistingLivingExpenseIncome,
+  getProjects,
   getRecurringRules,
   getReserveEntries,
   getSavingsPlans,
@@ -40,6 +43,7 @@ import {
   saveFundTransaction,
   saveFundCategory,
   saveLedger,
+  saveProject,
   saveRecurringRule,
   saveReserveEntry,
   saveSavingsPlan,
@@ -63,6 +67,7 @@ interface AppState {
   fundTransactions: FundTransaction[];
   savingsPlans: SavingsPlan[];
   reserveEntries: ReserveEntry[];
+  projects: Project[];
   isLoading: boolean;
 }
 
@@ -95,6 +100,9 @@ interface AppContextType extends AppState {
   savePlan: (plan: SavingsPlan) => Promise<void>;
   archivePlan: (planId: string, transferEntry?: ReserveEntry) => Promise<void>;
   addReserveEntry: (entry: ReserveEntry) => Promise<void>;
+  addProject: (project: Project) => Promise<void>;
+  updateProject: (project: Project) => Promise<void>;
+  removeProject: (projectId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -111,6 +119,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     fundTransactions: [],
     savingsPlans: [],
     reserveEntries: [],
+    projects: [],
     isLoading: true,
   });
 
@@ -138,6 +147,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       fundTransactions,
       savingsPlans,
       reserveEntries,
+      projects,
     ] = await Promise.all([
       getCategoriesByLedger(currentLedger.id),
       getFundCategories(currentLedger.id),
@@ -147,6 +157,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       getFundTransactions(currentLedger.id),
       getSavingsPlans(currentLedger.id),
       getReserveEntries(currentLedger.id),
+      getProjects(currentLedger.id),
     ]);
 
     setState({
@@ -160,6 +171,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       fundTransactions,
       savingsPlans,
       reserveEntries,
+      projects,
       isLoading: false,
     });
   };
@@ -451,6 +463,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setState((s) => ({ ...s, reserveEntries: [entry, ...s.reserveEntries] }));
   };
 
+  const addProject = async (project: Project) => {
+    await saveProject(project);
+    setState((s) => ({ ...s, projects: updateStateItem(s.projects, project, 'add') }));
+  };
+
+  const updateProject = async (project: Project) => {
+    await saveProject(project);
+    setState((s) => ({ ...s, projects: updateStateItem(s.projects, project, 'update') }));
+  };
+
+  const removeProject = async (projectId: string) => {
+    await deleteProject(projectId);
+    // 删除项目只解绑归集关系，状态层同步清掉 projectId，避免界面继续显示已删项目。
+    setState((s) => ({
+      ...s,
+      projects: s.projects.filter((project) => project.id !== projectId),
+      transactions: s.transactions.map((transaction) =>
+        transaction.projectId === projectId
+          ? { ...transaction, projectId: undefined }
+          : transaction),
+    }));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -483,6 +518,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         savePlan,
         archivePlan,
         addReserveEntry,
+        addProject,
+        updateProject,
+        removeProject,
       }}
     >
       {children}

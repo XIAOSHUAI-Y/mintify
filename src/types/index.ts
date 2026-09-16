@@ -61,6 +61,24 @@ export interface Transaction {
   /** 退款在界面上归入收入入口，但账务上冲减所绑定的原支出。 */
   kind?: TransactionKind;
   linkedExpenseTransactionId?: string;
+  /** 归集到某个跨月项目（旅行、装修等）；一笔账单最多属于一个项目。 */
+  projectId?: string;
+}
+
+/**
+ * 跨月开销的归集容器。只保存项目本身，总账始终由流水实时算出，
+ * 因此改名、归档都不会破坏历史归集关系。
+ */
+export interface Project {
+  id: string;
+  ledgerId: string;
+  name: string;
+  icon: string;
+  color: string;
+  note?: string;
+  createdAt: number;
+  /** 归档后不再出现在可选列表里，但历史流水与详情仍可查看。 */
+  archivedAt?: number;
 }
 
 export interface Budget {

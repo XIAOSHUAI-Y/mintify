@@ -202,9 +202,9 @@ describe('Mintify 备份恢复', () => {
     });
 
     const backup = await exportData();
-    expect(JSON.parse(backup)).toMatchObject({ schemaVersion: 7 });
+    expect(JSON.parse(backup)).toMatchObject({ schemaVersion: 8 });
     expect(inspectBackup(backup)).toMatchObject({
-      schemaVersion: 7,
+      schemaVersion: 8,
       ledgers: 1,
       transactions: 1,
     });
@@ -287,7 +287,7 @@ describe('Mintify 备份恢复', () => {
 
     const backup = await exportData();
     expect(inspectBackup(backup)).toMatchObject({
-      schemaVersion: 7,
+      schemaVersion: 8,
       fundCategories: 1,
       fundTransactions: 1,
     });

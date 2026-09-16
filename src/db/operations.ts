@@ -5,6 +5,7 @@ import type {
   FundTransaction,
   FundCategory,
   Ledger,
+  Project,
   RecurringRule,
   ReserveEntry,
   SavingsPlan,
@@ -26,6 +27,7 @@ import {
   getDB,
   getFundTransactionsByLedger,
   getFundCategoriesByLedger,
+  getProjectsByLedger,
   getReserveEntriesByLedger,
   getSavingsPlansByLedger,
   getById,
@@ -379,6 +381,37 @@ export async function deleteBudget(budgetId: string): Promise<void> {
 
 export async function getBudgets(ledgerId: string): Promise<Budget[]> {
   return getBudgetsByLedger(ledgerId);
+}
+
+// Projects
+export async function getProjects(ledgerId: string): Promise<Project[]> {
+  const projects = await getProjectsByLedger(ledgerId);
+  return projects.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function saveProject(project: Project): Promise<void> {
+  if (!project.name.trim()) throw new Error('项目名称不能为空');
+  await putItem('projects', { ...project, name: project.name.trim() });
+}
+
+/**
+ * 删除项目只解除归集关系：账单本身属于用户，不能跟着项目一起消失。
+ * 解绑和删除放在同一个事务里，避免中途失败留下指向已删项目的悬空引用。
+ */
+export async function deleteProject(projectId: string): Promise<void> {
+  const project = await getById<Project>('projects', projectId);
+  if (!project) return;
+
+  const taggedTransactions = (await getTransactionsByLedger(project.ledgerId))
+    .filter((transaction) => transaction.projectId === projectId);
+
+  const db = await getDB();
+  const write = db.transaction(['transactions', 'projects'], 'readwrite');
+  for (const transaction of taggedTransactions) {
+    await write.objectStore('transactions').put({ ...transaction, projectId: undefined });
+  }
+  await write.objectStore('projects').delete(projectId);
+  await write.done;
 }
 
 // Reserve pool and savings plans
@@ -763,7 +796,7 @@ export function calculateBudgetSpent(
   return budget.categoryId ? spending.get(budget.categoryId) ?? 0 : 0;
 }
 
-const BACKUP_SCHEMA_VERSION = 7;
+const BACKUP_SCHEMA_VERSION = 8;
 
 interface BackupData {
   ledgers: Ledger[];
@@ -775,6 +808,7 @@ interface BackupData {
   fundTransactions: FundTransaction[];
   savingsPlans: SavingsPlan[];
   reserveEntries: ReserveEntry[];
+  projects: Project[];
   settings: AppSettings[];
 }
 
@@ -819,7 +853,7 @@ function parseBackup(json: string): BackupData {
 
   let rawData: Record<string, unknown>;
   if ('schemaVersion' in parsed) {
-    if (![2, 3, 4, 5, 6, BACKUP_SCHEMA_VERSION].includes(parsed.schemaVersion as number)) {
+    if (![2, 3, 4, 5, 6, 7, BACKUP_SCHEMA_VERSION].includes(parsed.schemaVersion as number)) {
       throw new Error(`备份文件版本不受支持：${String(parsed.schemaVersion)}`);
     }
     if (!isRecord(parsed.data)) throw new Error('备份文件缺少 data 字段');
@@ -842,6 +876,7 @@ function parseBackup(json: string): BackupData {
     && hasNumber(item, 'createdAt')
     && (item.kind === undefined || item.kind === 'refund')
     && (item.kind !== 'refund' || hasString(item, 'linkedExpenseTransactionId'))
+    && (item.projectId === undefined || hasString(item, 'projectId'))
     && (item.mood === undefined || item.mood === 'necessary' || item.mood === 'happy' || item.mood === 'regret'));
   validateRefundRelations(transactions);
   const budgets = validateRecords<Budget>(rawData.budgets, '预算', (item) =>
@@ -896,6 +931,15 @@ function parseBackup(json: string): BackupData {
       && (item.sourceType !== 'plan' || hasString(item, 'sourcePlanId'))
       && (item.targetType !== 'plan' || hasString(item, 'targetPlanId'))
       && (item.targetType !== 'budget' || hasString(item, 'targetYearMonth')));
+  const projects = rawData.projects === undefined
+    ? []
+    : validateRecords<Project>(rawData.projects, '项目', (item) =>
+      hasString(item, 'id')
+      && hasString(item, 'ledgerId')
+      && hasString(item, 'name')
+      && hasString(item, 'icon')
+      && hasString(item, 'color')
+      && hasNumber(item, 'createdAt'));
   const settings = rawData.settings === undefined
     ? [{ ...DEFAULT_APP_SETTINGS }]
     : validateRecords<AppSettings>(rawData.settings, '设置', (item) =>
@@ -915,6 +959,7 @@ function parseBackup(json: string): BackupData {
     fundTransactions,
     savingsPlans,
     reserveEntries,
+    projects,
     settings,
   };
 }
@@ -949,6 +994,7 @@ export interface ImportResult {
   fundTransactions: number;
   savingsPlans: number;
   reserveEntries: number;
+  projects: number;
 }
 
 export interface BackupPreview extends ImportResult {
@@ -970,6 +1016,7 @@ export function inspectBackup(json: string): BackupPreview {
     fundTransactions: data.fundTransactions.length,
     savingsPlans: data.savingsPlans.length,
     reserveEntries: data.reserveEntries.length,
+    projects: data.projects.length,
   };
   if (typeof parsed.exportedAt === 'number') preview.exportedAt = parsed.exportedAt;
   return preview;
@@ -994,6 +1041,7 @@ export async function exportData(): Promise<string> {
       fundTransactions: await getAll<FundTransaction>('fundTransactions'),
       savingsPlans: await getAll<SavingsPlan>('savingsPlans'),
       reserveEntries: await getAll<ReserveEntry>('reserveEntries'),
+      projects: await getAll<Project>('projects'),
       settings: [settings],
     },
   };
@@ -1017,6 +1065,7 @@ export async function importData(
     'fundTransactions',
     'savingsPlans',
     'reserveEntries',
+    'projects',
     'settings',
   ] as const;
   const transaction = db.transaction(storeNames, 'readwrite');
@@ -1037,6 +1086,7 @@ export async function importData(
   for (const item of data.fundTransactions) await transaction.objectStore('fundTransactions').put(item);
   for (const item of data.savingsPlans) await transaction.objectStore('savingsPlans').put(item);
   for (const item of data.reserveEntries) await transaction.objectStore('reserveEntries').put(item);
+  for (const item of data.projects) await transaction.objectStore('projects').put(item);
   for (const item of data.settings) await transaction.objectStore('settings').put(item);
   await transaction.done;
 
@@ -1050,5 +1100,6 @@ export async function importData(
     fundTransactions: data.fundTransactions.length,
     savingsPlans: data.savingsPlans.length,
     reserveEntries: data.reserveEntries.length,
+    projects: data.projects.length,
   };
 }

@@ -8,6 +8,7 @@ export const APP_ROUTES = [
   '/recurring',
   '/funds',
   '/savings',
+  '/projects',
 ] as const;
 
 export type AppRoute = typeof APP_ROUTES[number];

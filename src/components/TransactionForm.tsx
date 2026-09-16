@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DatePicker } from 'antd-mobile';
-import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank, Search } from 'lucide-react';
+import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank, Search, Package } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
 import HorizontalScrollArea from './HorizontalScrollArea';
@@ -28,6 +28,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     budgets,
     savingsPlans,
     reserveEntries,
+    projects,
     addTransaction,
     addReserveEntry,
     updateTransaction,
@@ -41,10 +42,12 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   const [tags, setTags] = useState<string[]>(editingTransaction?.tags || []);
   const [mood, setMood] = useState<TransactionMood | undefined>(editingTransaction?.mood);
   const [photo, setPhoto] = useState(editingTransaction?.photo || '');
+  const [projectId, setProjectId] = useState(editingTransaction?.projectId || '');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [draftOccurredAt, setDraftOccurredAt] = useState(occurredAt);
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [showNoteInput, setShowNoteInput] = useState(false);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [incomeMode, setIncomeMode] = useState<'standard' | 'refund'>(
     editingTransaction?.kind === 'refund' ? 'refund' : 'standard',
   );
@@ -58,6 +61,12 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     () => savingsPlans.filter((plan) => !plan.archivedAt),
     [savingsPlans],
   );
+  // 已归档项目不再可选，但正在编辑的账单原本就归属它时要保留，否则一保存就丢归集。
+  const selectableProjects = useMemo(
+    () => projects.filter((project) => !project.archivedAt || project.id === editingTransaction?.projectId),
+    [editingTransaction?.projectId, projects],
+  );
+  const selectedProject = projects.find((project) => project.id === projectId);
   const savingAvailability = useMemo(
     () => currentLedger
       ? calculateMonthlyBudgetAvailability({
@@ -203,6 +212,7 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       recurringRuleId: editingTransaction?.recurringRuleId,
       kind: isRefundMode ? 'refund' : undefined,
       linkedExpenseTransactionId: isRefundMode ? linkedExpenseId : undefined,
+      projectId: projectId || undefined,
     };
 
     try {
@@ -384,6 +394,15 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
             {tags.length > 0 ? tags.join(',') : '标签'}
           </button>
         )}
+        {!isSavingMode && (
+          <button
+            onClick={() => setShowProjectPicker(true)}
+            className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm dark:bg-slate-700/60"
+          >
+            <Package size={16} />
+            {selectedProject ? selectedProject.name : '项目'}
+          </button>
+        )}
         <button
           onClick={() => setShowNoteInput(true)}
           className="flex min-h-10 max-w-32 shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-3 text-sm dark:bg-slate-700/60"
@@ -520,6 +539,8 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                       onClick={() => {
                         setLinkedExpenseId(expense.id);
                         if (!amount) setAmount(String(remaining));
+                        // 退款在账务上冲减原支出，归集也该跟着原支出走，否则项目总账会多算一笔退款。
+                        if (!projectId) setProjectId(expense.projectId || '');
                         setSaveError('');
                       }}
                       className={`flex min-h-18 w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors ${
@@ -679,6 +700,70 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Project Picker Modal */}
+      {showProjectPicker && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-4 w-full max-w-sm max-h-[70vh] overflow-y-auto dark:bg-slate-800">
+            <div className="flex justify-between items-center mb-4">
+              <span className="font-medium">归集到项目</span>
+              <button aria-label="关闭项目选择" onClick={() => setShowProjectPicker(false)}><X size={20} /></button>
+            </div>
+            {selectableProjects.length === 0 ? (
+              <div className="rounded-xl bg-slate-50 px-3 py-6 text-center text-xs leading-5 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400">
+                还没有项目。到「我的 → 项目归集」里新建一个，
+                <br />比如「日本旅行」，之后就能把账单归到一起看总账。
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    setProjectId('');
+                    setShowProjectPicker(false);
+                  }}
+                  aria-pressed={!projectId}
+                  className={`flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 text-left text-sm transition-colors ${
+                    !projectId
+                      ? 'border-amber-300 bg-amber-50 dark:border-amber-400/30 dark:bg-amber-400/10'
+                      : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
+                  }`}
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-400 dark:bg-slate-700/60">
+                    <X size={15} />
+                  </span>
+                  不归集到项目
+                </button>
+                {selectableProjects.map((project) => (
+                  <button
+                    key={project.id}
+                    onClick={() => {
+                      setProjectId(project.id);
+                      setShowProjectPicker(false);
+                    }}
+                    aria-pressed={projectId === project.id}
+                    className={`flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 text-left text-sm transition-colors ${
+                      projectId === project.id
+                        ? 'border-amber-300 bg-amber-50 dark:border-amber-400/30 dark:bg-amber-400/10'
+                        : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'
+                    }`}
+                  >
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white"
+                      style={{ backgroundColor: project.color }}
+                    >
+                      <Icon name={project.icon} size={16} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-800 dark:text-slate-100">{project.name}</span>
+                      {project.archivedAt && <span className="text-[11px] text-slate-400">已归档</span>}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

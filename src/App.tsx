@@ -7,6 +7,7 @@ import BudgetPage from './pages/BudgetPage';
 import CategoryPage from './pages/CategoryPage';
 import RecurringPage from './pages/RecurringPage';
 import FundPage from './pages/FundPage';
+import ProjectPage from './pages/ProjectPage';
 import ReserveCenter from './components/ReserveCenter';
 import TransactionForm from './components/TransactionForm';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
@@ -48,13 +49,15 @@ function App() {
       case '/budget':
         return <BudgetPage />;
       case '/settings':
-        return <SettingsPage />;
+        return <SettingsPage onNavigate={navigate} />;
       case '/categories':
         return <CategoryPage onClose={closeSecondaryPage} />;
       case '/recurring':
         return <RecurringPage onClose={closeSecondaryPage} />;
       case '/funds':
         return <FundPage onClose={closeSecondaryPage} />;
+      case '/projects':
+        return <ProjectPage onClose={closeSecondaryPage} />;
       case '/savings':
         return (
           <ReserveCenter

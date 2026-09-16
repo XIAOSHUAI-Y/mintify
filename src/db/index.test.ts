@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deleteDB, openDB } from 'idb';
-import type { FundCategory, Ledger, ReserveEntry, SavingsPlan } from '../types';
+import type { FundCategory, Ledger, Project, ReserveEntry, SavingsPlan } from '../types';
 import {
   closeDB,
   DB_NAME,
@@ -54,12 +54,14 @@ describe('Mintify 数据库升级', () => {
     const fundCategories = await getAll<FundCategory>('fundCategories');
     const savingsPlans = await getAll<SavingsPlan>('savingsPlans');
     const reserveEntries = await getAll<ReserveEntry>('reserveEntries');
+    const projects = await getAll<Project>('projects');
     const settings = await getAppSettings();
 
     expect(ledgers).toEqual([legacyLedger]);
     expect(fundCategories).toEqual([]);
     expect(savingsPlans).toEqual([]);
     expect(reserveEntries).toEqual([]);
+    expect(projects).toEqual([]);
     expect(settings).toMatchObject({
       id: 'app-settings',
       reminderEnabled: false,
