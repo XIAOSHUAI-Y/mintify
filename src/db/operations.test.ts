@@ -88,7 +88,168 @@ describe('分类删除', () => {
       expect.objectContaining({ id: category.id, deletedAt: expect.any(Number) }),
     ]);
   });
+
+  it('拒绝删除仍带子分类的父分类，父级与子级都保持原样', async () => {
+    const parent: Category = category({ id: 'food', name: '餐饮' });
+    const child: Category = category({ id: 'takeout', name: '外卖', parentId: 'food' });
+    await saveCategory(parent);
+    await saveCategory(child);
+
+    await expect(deleteCategory('food')).rejects.toThrow('还有 1 个子分类');
+
+    const categories = await getCategoriesByLedger('daily-ledger');
+    expect(categories.find((item) => item.id === 'food')?.deletedAt).toBeUndefined();
+    expect(categories.find((item) => item.id === 'takeout')?.deletedAt).toBeUndefined();
+  });
+
+  it('子分类全部软删后，父分类可以正常删除', async () => {
+    await saveCategory(category({ id: 'food', name: '餐饮' }));
+    await saveCategory(category({ id: 'takeout', name: '外卖', parentId: 'food' }));
+    await deleteCategory('takeout');
+
+    await deleteCategory('food');
+
+    const categories = await getCategoriesByLedger('daily-ledger');
+    expect(categories.every((item) => item.deletedAt !== undefined)).toBe(true);
+  });
 });
+
+describe('分类层级备份', () => {
+  afterEach(async () => {
+    await closeDB();
+    await deleteDB(DB_NAME);
+  });
+
+  it('层级随备份往返，父级与子级都保留 parentId', async () => {
+    await saveCategory(category({ id: 'food', name: '餐饮' }));
+    await saveCategory(category({ id: 'takeout', name: '外卖', parentId: 'food' }));
+
+    const backup = await exportData();
+    await importData(backup, { mode: 'replace' });
+
+    const categories = await getCategoriesByLedger('daily-ledger');
+    expect(categories.find((item) => item.id === 'takeout')?.parentId).toBe('food');
+    expect(categories.find((item) => item.id === 'food')?.parentId).toBeUndefined();
+  });
+
+  it('导入 schema 8 的老备份时全部视为顶层分类', async () => {
+    const legacyBackup = JSON.stringify({
+      schemaVersion: 8,
+      exportedAt: Date.now(),
+      appVersion: '1.7.0',
+      data: {
+        ledgers: [ledger()],
+        categories: [category({ id: 'food', name: '餐饮' }), category({ id: 'traffic', name: '交通', sortOrder: 1 })],
+        transactions: [],
+        budgets: [],
+        recurringRules: [],
+        fundCategories: [],
+        fundTransactions: [],
+        savingsPlans: [],
+        reserveEntries: [],
+        projects: [],
+        settings: [DEFAULT_APP_SETTINGS],
+      },
+    });
+
+    await importData(legacyBackup, { mode: 'replace' });
+
+    const categories = await getCategoriesByLedger('daily-ledger');
+    expect(categories).toHaveLength(2);
+    expect(categories.every((item) => item.parentId === undefined)).toBe(true);
+  });
+
+  it('拒绝层级不成立的备份，并保留原数据', async () => {
+    await saveCategory(category({ id: 'keep', name: '要保留的分类' }));
+
+    const withParent = (categories: unknown[]) => JSON.stringify({
+      schemaVersion: 9,
+      exportedAt: Date.now(),
+      appVersion: '1.8.0',
+      data: {
+        ledgers: [ledger()],
+        categories,
+        transactions: [],
+        budgets: [],
+        recurringRules: [],
+        fundCategories: [],
+        fundTransactions: [],
+        savingsPlans: [],
+        reserveEntries: [],
+        projects: [],
+        settings: [DEFAULT_APP_SETTINGS],
+      },
+    });
+
+    const cases: { categories: unknown[]; message: string }[] = [
+      {
+        categories: [category({ id: 'takeout', parentId: 'ghost' })],
+        message: '父分类不存在',
+      },
+      {
+        categories: [category({ id: 'food', parentId: 'food' })],
+        message: '以自己作为父分类',
+      },
+      {
+        categories: [
+          category({ id: 'food', ledgerId: 'other-ledger' }),
+          category({ id: 'takeout', parentId: 'food' }),
+        ],
+        message: '父分类属于其他账本',
+      },
+      {
+        categories: [
+          category({ id: 'salary', type: 'income' }),
+          category({ id: 'bonus', type: 'expense', parentId: 'salary' }),
+        ],
+        message: '收支类型不一致',
+      },
+      {
+        categories: [
+          category({ id: 'food' }),
+          category({ id: 'takeout', parentId: 'food' }),
+          category({ id: 'lunch', parentId: 'takeout' }),
+        ],
+        message: '超出了两级分类',
+      },
+    ];
+
+    for (const item of cases) {
+      await expect(importData(withParent(item.categories), { mode: 'replace' }))
+        .rejects.toThrow(item.message);
+    }
+
+    expect(await getCategoriesByLedger('daily-ledger')).toEqual([
+      expect.objectContaining({ id: 'keep' }),
+    ]);
+  });
+});
+
+function ledger(): Ledger {
+  return {
+    id: 'daily-ledger',
+    name: '日常账本',
+    icon: 'book',
+    color: '#FACC15',
+    isDefault: true,
+    sortOrder: 0,
+    createdAt: 1,
+  };
+}
+
+function category(overrides: Partial<Category>): Category {
+  return {
+    id: 'category',
+    ledgerId: 'daily-ledger',
+    name: '分类',
+    icon: 'utensils',
+    color: '#F87171',
+    type: 'expense',
+    sortOrder: 0,
+    isBuiltIn: false,
+    ...overrides,
+  };
+}
 
 describe('资金分类', () => {
   afterEach(async () => {
@@ -202,9 +363,9 @@ describe('Mintify 备份恢复', () => {
     });
 
     const backup = await exportData();
-    expect(JSON.parse(backup)).toMatchObject({ schemaVersion: 8 });
+    expect(JSON.parse(backup)).toMatchObject({ schemaVersion: 9 });
     expect(inspectBackup(backup)).toMatchObject({
-      schemaVersion: 8,
+      schemaVersion: 9,
       ledgers: 1,
       transactions: 1,
     });
@@ -287,7 +448,7 @@ describe('Mintify 备份恢复', () => {
 
     const backup = await exportData();
     expect(inspectBackup(backup)).toMatchObject({
-      schemaVersion: 8,
+      schemaVersion: 9,
       fundCategories: 1,
       fundTransactions: 1,
     });

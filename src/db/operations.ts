@@ -195,6 +195,12 @@ export async function saveCategory(category: Category): Promise<void> {
 export async function deleteCategory(categoryId: string): Promise<void> {
   const category = await getById<Category>('categories', categoryId);
   if (!category) return;
+  // 带子分类的分类是分组，直接软删会让子分类的父级悬空、报表归并口径跳变，所以要求先处理子级。
+  const liveChildren = await getCategoriesByLedger(category.ledgerId).then((categories) =>
+    categories.filter((item) => item.parentId === categoryId && !item.deletedAt));
+  if (liveChildren.length > 0) {
+    throw new Error(`“${category.name}”下还有 ${liveChildren.length} 个子分类，请先删除或移出子分类`);
+  }
   await putItem('categories', { ...category, deletedAt: Date.now() });
 }
 
@@ -796,7 +802,7 @@ export function calculateBudgetSpent(
   return budget.categoryId ? spending.get(budget.categoryId) ?? 0 : 0;
 }
 
-const BACKUP_SCHEMA_VERSION = 8;
+const BACKUP_SCHEMA_VERSION = 9;
 
 interface BackupData {
   ledgers: Ledger[];
@@ -853,7 +859,8 @@ function parseBackup(json: string): BackupData {
 
   let rawData: Record<string, unknown>;
   if ('schemaVersion' in parsed) {
-    if (![2, 3, 4, 5, 6, 7, BACKUP_SCHEMA_VERSION].includes(parsed.schemaVersion as number)) {
+    // 8 必须显式列出：它正是上一个已发布版本导出的格式，漏掉会导致老备份无法导入。
+    if (![2, 3, 4, 5, 6, 7, 8, BACKUP_SCHEMA_VERSION].includes(parsed.schemaVersion as number)) {
       throw new Error(`备份文件版本不受支持：${String(parsed.schemaVersion)}`);
     }
     if (!isRecord(parsed.data)) throw new Error('备份文件缺少 data 字段');
@@ -866,7 +873,11 @@ function parseBackup(json: string): BackupData {
   const ledgers = validateRecords<Ledger>(rawData.ledgers, '账本', (item) =>
     hasString(item, 'id') && hasString(item, 'name') && hasNumber(item, 'createdAt'));
   const categories = validateRecords<Category>(rawData.categories, '分类', (item) =>
-    hasString(item, 'id') && hasString(item, 'ledgerId') && hasString(item, 'name'));
+    hasString(item, 'id')
+    && hasString(item, 'ledgerId')
+    && hasString(item, 'name')
+    && (item.parentId === undefined || hasString(item, 'parentId')));
+  validateCategoryHierarchy(categories);
   const transactions = validateRecords<Transaction>(rawData.transactions, '交易', (item) =>
     hasString(item, 'id')
     && hasString(item, 'ledgerId')
@@ -977,6 +988,23 @@ function validateRefundRelations(transactions: Transaction[]): void {
     const refunded = (refundedByExpense.get(expenseId) ?? 0) + transaction.amount;
     if (refunded > expense.amount) throw new Error('备份文件中的退款金额超过原支出');
     refundedByExpense.set(expenseId, refunded);
+  }
+}
+
+/**
+ * 分类层级在导入时必须严格成立，否则界面会出现三级嵌套或跨账本的父子关系。
+ * 与 validateRefundRelations 一致：宁可拒绝导入，也不静默降级成脏数据。
+ */
+function validateCategoryHierarchy(categories: Category[]): void {
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  for (const category of categories) {
+    if (!category.parentId) continue;
+    const parent = byId.get(category.parentId);
+    if (!parent) throw new Error(`备份文件中的分类层级不正确：“${category.name}”的父分类不存在`);
+    if (parent.id === category.id) throw new Error(`备份文件中的分类层级不正确：“${category.name}”以自己作为父分类`);
+    if (parent.ledgerId !== category.ledgerId) throw new Error(`备份文件中的分类层级不正确：“${category.name}”的父分类属于其他账本`);
+    if (parent.type !== category.type) throw new Error(`备份文件中的分类层级不正确：“${category.name}”与父分类的收支类型不一致`);
+    if (parent.parentId) throw new Error(`备份文件中的分类层级不正确：“${category.name}”超出了两级分类`);
   }
 }
 

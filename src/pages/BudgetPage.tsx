@@ -16,6 +16,7 @@ import {
 import { calculateMonthlyReserveDestinations, getSavingsAllocationProgress } from '../domain/reserveLedger';
 import { buildBudgetReserveTransfer, type BudgetReserveDestination } from '../domain/budgetReserveTransfer';
 import { getNetSpendingByCategory } from '../domain/transactionAccounting';
+import { isGroupCategory } from '../domain/categoryTree';
 import type { Budget, SavingsPlan, Transaction } from '../types';
 
 export default function BudgetPage() {
@@ -291,7 +292,9 @@ export default function BudgetPage() {
           budgetType={editingBudget?.includeOverall ? 'overall' : creatingBudgetType || 'category'}
           categories={categories.filter((category) =>
             category.type === 'expense'
-            && (!category.deletedAt || category.id === editingBudget?.categoryId))}
+            && (!category.deletedAt || category.id === editingBudget?.categoryId)
+            // 分组分类不挂账单，给它设预算永远是 0，因此不作为候选；编辑中的旧预算例外。
+            && (!isGroupCategory(categories, category.id) || category.id === editingBudget?.categoryId))}
           budgets={budgets}
           transactions={transactions}
           reserveEntries={reserveEntries}

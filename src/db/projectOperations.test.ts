@@ -49,7 +49,7 @@ describe('项目归集持久化', () => {
     await saveTransaction(transaction({ id: 'tagged', projectId: 'travel' }));
 
     const backup = await exportData();
-    expect(inspectBackup(backup)).toMatchObject({ schemaVersion: 8, projects: 1 });
+    expect(inspectBackup(backup)).toMatchObject({ schemaVersion: 9, projects: 1 });
 
     await deleteProject('travel');
     await importData(backup, { mode: 'replace' });

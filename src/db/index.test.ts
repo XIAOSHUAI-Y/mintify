@@ -1,12 +1,13 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deleteDB, openDB } from 'idb';
-import type { FundCategory, Ledger, Project, ReserveEntry, SavingsPlan } from '../types';
+import type { Category, FundCategory, Ledger, Project, ReserveEntry, SavingsPlan } from '../types';
 import {
   closeDB,
   DB_NAME,
   getAll,
   getAppSettings,
+  getDB,
   migrateLegacySettings,
 } from './index';
 
@@ -29,6 +30,19 @@ async function createLegacyV1Database(ledger: Ledger): Promise<void> {
   });
 
   await db.put('ledgers', ledger);
+  db.close();
+}
+
+/** V7 时代 categories 上没有 by-parent 索引，用于验证升级是否补建。 */
+async function createLegacyV7Database(category: Category): Promise<void> {
+  const db = await openDB(DB_NAME, 7, {
+    upgrade(database) {
+      database.createObjectStore('ledgers', { keyPath: 'id' });
+      database.createObjectStore('categories', { keyPath: 'id' });
+    },
+  });
+
+  await db.put('categories', category);
   db.close();
 }
 
@@ -70,8 +84,28 @@ describe('Mintify 数据库升级', () => {
     });
   });
 
-  it('把旧版本地设置迁入 IndexedDB', async () => {
-    const legacyValues: Record<string, string> = {
+  it('从 V7 升级后补建分类 by-parent 索引，旧分类仍然作为顶层保留', async () => {
+    const legacyCategory: Category = {
+      id: 'legacy-food',
+      ledgerId: 'legacy-ledger',
+      name: '餐饮',
+      icon: 'utensils',
+      color: '#F87171',
+      type: 'expense',
+      sortOrder: 0,
+      isBuiltIn: true,
+    };
+    await createLegacyV7Database(legacyCategory);
+
+    const db = await getDB();
+    const categories = await getAll<Category>('categories');
+
+    expect([...db.transaction('categories').store.indexNames]).toContain('by-parent');
+    expect(categories).toEqual([legacyCategory]);
+    expect(categories[0].parentId).toBeUndefined();
+  });
+
+  it('把旧版本地设置迁入 IndexedDB', async () => {    const legacyValues: Record<string, string> = {
       reminderEnabled: 'true',
       reminderTime: '08:30',
       presetTags: JSON.stringify(['通勤', '早餐']),

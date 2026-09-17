@@ -22,6 +22,9 @@ interface MintifyDB extends DBSchema {
   categories: {
     key: string;
     value: Category;
+    indexes: {
+      'by-parent': string;
+    };
   };
   transactions: {
     key: string;
@@ -89,7 +92,7 @@ interface MintifyDB extends DBSchema {
 }
 
 export const DB_NAME = 'mintify-db';
-export const DB_VERSION = 7;
+export const DB_VERSION = 8;
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   id: 'app-settings',
@@ -106,7 +109,7 @@ let dbPromise: Promise<IDBPDatabase<MintifyDB>> | null = null;
 export const getDB = () => {
   if (!dbPromise) {
     dbPromise = openDB<MintifyDB>(DB_NAME, DB_VERSION, {
-      upgrade(db, oldVersion) {
+      upgrade(db, oldVersion, _newVersion, transaction) {
         // 按旧版本逐级迁移，避免升级时重复创建已有 Store 而导致数据库无法打开。
         if (oldVersion < 1) {
           db.createObjectStore('ledgers', { keyPath: 'id' });
@@ -151,6 +154,11 @@ export const getDB = () => {
         if (oldVersion < 7) {
           const projectStore = db.createObjectStore('projects', { keyPath: 'id' });
           projectStore.createIndex('by-ledger', 'ledgerId');
+        }
+
+        if (oldVersion < 8) {
+          // 分类层级只加索引、不动数据：已有分类都没有 parentId，自然全是顶层。
+          transaction.objectStore('categories').createIndex('by-parent', 'parentId');
         }
       },
     });

@@ -26,6 +26,11 @@ export interface Category {
   type: TransactionType;
   sortOrder: number;
   isBuiltIn: boolean;
+  /**
+   * 只支持两级：指向同账本、同收支类型的顶层分类。
+   * 带子分类的分类是「分组」，只用于组织和报表归并，不能直接挂账单。
+   */
+  parentId?: string;
   /** 软删除后不再用于新增记录，但保留元数据供历史账单和统计展示。 */
   deletedAt?: number;
 }

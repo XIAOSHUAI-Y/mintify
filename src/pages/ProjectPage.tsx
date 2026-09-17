@@ -12,6 +12,7 @@ import {
   getProjectTransactions,
   summarizeProject,
 } from '../domain/projectLedger';
+import { rollUpSpending } from '../domain/categoryTree';
 import type { Project, Transaction } from '../types';
 
 interface ProjectPageProps {
@@ -276,10 +277,20 @@ function ProjectDetail({
     [project.id, transactions],
   );
   const totals = useMemo(() => summarizeProject(transactions, project.id), [project.id, transactions]);
-  const breakdown = useMemo(
+  const leafBreakdown = useMemo(
     () => buildProjectCategoryBreakdown(transactions, project.id),
     [project.id, transactions],
   );
+  /** 分类构成与报表口径一致：子分类金额归并到父分类。 */
+  const breakdown = useMemo(() => {
+    const rolled = rollUpSpending(
+      new Map(leafBreakdown.map((item) => [item.categoryId, item.amount])),
+      categories,
+    );
+    return [...rolled.entries()]
+      .map(([categoryId, amount]) => ({ categoryId, amount }))
+      .sort((a, b) => b.amount - a.amount || a.categoryId.localeCompare(b.categoryId, 'zh-CN'));
+  }, [categories, leafBreakdown]);
   const maxAmount = breakdown.reduce((max, item) => Math.max(max, item.amount), 0);
   const groupedByDay = useMemo(() => {
     const groups: Record<string, typeof scoped> = {};

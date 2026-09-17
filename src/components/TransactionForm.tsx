@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DatePicker } from 'antd-mobile';
-import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank, Search, Package } from 'lucide-react';
+import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank, Search, Package, ChevronLeft } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
 import HorizontalScrollArea from './HorizontalScrollArea';
@@ -10,6 +10,7 @@ import type { Transaction, TransactionMood } from '../types';
 import { getRemainingRefundableAmount } from '../domain/transactionAccounting';
 import { calculateMonthlyBudgetAvailability } from '../domain/reserveLedger';
 import { buildBudgetAlerts } from '../domain/budgetAlerts';
+import { buildCategoryTree, getChildCategories } from '../domain/categoryTree';
 import { MOOD_OPTIONS } from '../domain/mood';
 import { showToast } from '../utils/toast';
 
@@ -37,6 +38,8 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
   const [type, setType] = useState<EntryMode>(editingTransaction?.type || 'expense');
   const [amount, setAmount] = useState(editingTransaction ? String(editingTransaction.amount) : '');
   const [selectedCategoryId, setSelectedCategoryId] = useState(editingTransaction?.categoryId || '');
+  /** 下钻到的父分类；为空表示显示顶层。 */
+  const [categoryParentId, setCategoryParentId] = useState('');
   const [occurredAt, setOccurredAt] = useState(editingTransaction?.occurredAt || Date.now());
   const [note, setNote] = useState(editingTransaction?.note || '');
   const [tags, setTags] = useState<string[]>(editingTransaction?.tags || []);
@@ -89,6 +92,17 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       .sort((a, b) => a.sortOrder - b.sortOrder),
     [categories, editingTransaction?.categoryId, type]
   );
+
+  /** 分类选择器按层级展示：首屏是顶层分类，点带子分类的格子下钻一屏。 */
+  const categoryTree = useMemo(() => buildCategoryTree(filteredCategories), [filteredCategories]);
+  const childCategories = (parentId: string) => getChildCategories(filteredCategories, parentId);
+  const groupChildCount = (categoryId: string) => childCategories(categoryId).length;
+  const categoryParent = categoryParentId
+    ? filteredCategories.find((category) => category.id === categoryParentId)
+    : undefined;
+  const visibleCategories = categoryParent
+    ? childCategories(categoryParent.id)
+    : categoryTree.roots;
 
   const refundCategory = useMemo(
     () => categories.find((category) => category.type === 'income' && category.name === '退款'),
@@ -574,31 +588,59 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
         ) : (
           <>
             <div className="mb-3 flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">选择分类</div>
-              <div className="text-xs text-slate-400">{filteredCategories.length} 个</div>
+              {categoryParentId ? (
+                <button
+                  onClick={() => setCategoryParentId('')}
+                  className="flex items-center gap-1 text-sm font-semibold text-slate-800 dark:text-slate-100"
+                >
+                  <ChevronLeft size={17} className="text-slate-400" />
+                  {categoryParent?.name ?? '返回'}
+                </button>
+              ) : (
+                <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">选择分类</div>
+              )}
+              <div className="text-xs text-slate-400">{visibleCategories.length} 个</div>
             </div>
             <div className="grid grid-cols-4 gap-x-3 gap-y-4">
-              {filteredCategories.map((category) => (
-            <button
-              key={category.id}
-              onClick={() => setSelectedCategoryId(category.id)}
-              aria-label={`选择${category.name}分类`}
-              aria-pressed={selectedCategoryId === category.id}
-              className="flex flex-col items-center gap-2"
-            >
-              <div
-                className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
-                  selectedCategoryId === category.id ? 'text-white' : 'bg-gray-100 text-gray-700 dark:bg-slate-700/60 dark:text-slate-300'
-                }`}
-                style={{
-                  backgroundColor: selectedCategoryId === category.id ? category.color : undefined,
-                }}
-              >
-                <Icon name={category.icon} size={24} />
-              </div>
-              <span className="text-xs">{category.name}</span>
-            </button>
-              ))}
+              {visibleCategories.map((category) => {
+                // 分组本身不挂账单，但选中它下面的子分类时，父级格子要显示为选中态。
+                const childCount = groupChildCount(category.id);
+                const selectedChild = childCount > 0 && selectedCategoryId
+                  ? childCategories(category.id).find((child) => child.id === selectedCategoryId)
+                  : undefined;
+                const selected = selectedCategoryId === category.id || Boolean(selectedChild);
+                return (
+                  <button
+                    key={category.id}
+                    onClick={() => {
+                      if (childCount > 0) {
+                        setCategoryParentId(category.id);
+                        return;
+                      }
+                      setSelectedCategoryId(category.id);
+                      setCategoryParentId('');
+                    }}
+                    aria-label={childCount > 0 ? `展开${category.name}子分类` : `选择${category.name}分类`}
+                    aria-pressed={selected}
+                    className="relative flex flex-col items-center gap-2"
+                  >
+                    <div
+                      className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
+                        selected ? 'text-white' : 'bg-gray-100 text-gray-700 dark:bg-slate-700/60 dark:text-slate-300'
+                      }`}
+                      style={{ backgroundColor: selected ? category.color : undefined }}
+                    >
+                      <Icon name={category.icon} size={24} />
+                    </div>
+                    {childCount > 0 && (
+                      <span className="absolute right-0 top-0 rounded-full bg-slate-200 px-1.5 text-[10px] font-medium text-slate-500 dark:bg-slate-600 dark:text-slate-200">
+                        {childCount}
+                      </span>
+                    )}
+                    <span className="text-xs">{selectedChild ? selectedChild.name : category.name}</span>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}

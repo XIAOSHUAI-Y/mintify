@@ -6,6 +6,7 @@ import TransactionDetail from './TransactionDetail';
 import HorizontalScrollArea from './HorizontalScrollArea';
 import { formatDateHeader, formatMoney } from '../utils/helpers';
 import { isRefund } from '../domain/transactionAccounting';
+import { isGroupCategory } from '../domain/categoryTree';
 import {
   DATE_PRESET_OPTIONS,
   EMPTY_FILTER,
@@ -180,7 +181,11 @@ export default function TransactionSearch({ onClose }: { onClose: () => void }) 
             全部分类
           </button>
           {categories
-            .filter((category) => !category.deletedAt && (typeFilter === 'all' || category.type === typeFilter))
+            .filter((category) =>
+              !category.deletedAt
+              && (typeFilter === 'all' || category.type === typeFilter)
+              // 分组分类自己不带账单，选中它只会搜出空结果，所以只列末级分类。
+              && !isGroupCategory(categories, category.id))
             .map((category) => (
               <button
                 key={category.id}

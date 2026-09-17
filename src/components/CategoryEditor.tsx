@@ -9,11 +9,26 @@ export interface CategoryEditorValue {
   color: string;
 }
 
+export interface CategoryParentOption {
+  id: string;
+  name: string;
+  icon: string;
+}
+
 interface CategoryEditorProps {
   title: string;
   initialValue?: CategoryEditorValue;
   isBuiltIn?: boolean;
-  onSave: (value: CategoryEditorValue) => void | Promise<void>;
+  /**
+   * 可选：传入上级分类候选时才显示「上级分类」选择器。
+   * 资金分类页不传，界面与行为保持与本改动前完全一致。
+   */
+  parentOptions?: CategoryParentOption[];
+  initialParentId?: string;
+  /** 由调用方给出的校验/删除失败原因，展示在表单顶部。 */
+  errorMessage?: string;
+  /** 第二个参数只在提供了 parentOptions 时有意义：undefined 表示顶层分类。 */
+  onSave: (value: CategoryEditorValue, parentId?: string) => void | Promise<void>;
   onCancel: () => void;
   onDelete?: () => void | Promise<void>;
 }
@@ -22,6 +37,9 @@ export default function CategoryEditor({
   title,
   initialValue,
   isBuiltIn = false,
+  parentOptions,
+  initialParentId,
+  errorMessage,
   onSave,
   onCancel,
   onDelete,
@@ -29,6 +47,7 @@ export default function CategoryEditor({
   const [name, setName] = useState(initialValue?.name || '');
   const [icon, setIcon] = useState(initialValue?.icon || APP_ICONS[0]);
   const [color, setColor] = useState(initialValue?.color || APP_COLORS[0]);
+  const [parentId, setParentId] = useState(initialParentId || '');
   const normalizedName = name.trim();
 
   return (
@@ -43,7 +62,7 @@ export default function CategoryEditor({
         </div>
         <button
           disabled={!normalizedName}
-          onClick={() => void onSave({ name: normalizedName, icon, color })}
+          onClick={() => void onSave({ name: normalizedName, icon, color }, parentId || undefined)}
           className="min-h-11 rounded-full px-2 text-sm font-semibold text-amber-700 disabled:text-slate-300 dark:text-amber-300 dark:disabled:text-slate-600"
         >
           保存
@@ -51,6 +70,12 @@ export default function CategoryEditor({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pb-8">
+        {errorMessage && (
+          <div className="mb-4 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600 dark:bg-rose-400/10 dark:text-rose-300">
+            {errorMessage}
+          </div>
+        )}
+
         <section className="surface-card p-4">
           <div className="mb-4 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-amber-50 to-white p-3 ring-1 ring-amber-100 dark:from-amber-400/10 dark:to-slate-800 dark:ring-amber-400/20">
             <span
@@ -77,6 +102,43 @@ export default function CategoryEditor({
             />
           </label>
         </section>
+
+        {parentOptions && (
+          <section className="surface-card mt-4 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">上级分类</span>
+              <span className="text-xs text-slate-400">最多两级</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                aria-pressed={parentId === ''}
+                onClick={() => setParentId('')}
+                className={`min-h-9 rounded-full px-3 text-sm ${
+                  parentId === ''
+                    ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900'
+                    : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300'
+                }`}
+              >
+                无（顶层）
+              </button>
+              {parentOptions.map((option) => (
+                <button
+                  key={option.id}
+                  aria-pressed={parentId === option.id}
+                  onClick={() => setParentId(option.id)}
+                  className={`flex min-h-9 items-center gap-1.5 rounded-full px-3 text-sm ${
+                    parentId === option.id
+                      ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900'
+                      : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300'
+                  }`}
+                >
+                  <Icon name={option.icon} size={14} />
+                  {option.name}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="surface-card mt-4 p-4">
           <div className="mb-3 flex items-center justify-between">

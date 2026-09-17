@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import { useConfirmDeletion } from '../context/ConfirmDialogContext';
 import { generateId, formatMoney, formatShortDate } from '../utils/helpers';
+import { isGroupCategory } from '../domain/categoryTree';
 import type { Category, RecurringRule } from '../types';
 
 interface RecurringPageProps {
@@ -150,8 +151,11 @@ function RecurringForm({
   );
   const [note, setNote] = useState(rule?.note || '');
 
+  // 分组分类（带子分类）不挂账单，因此不能作为周期规则的目标；编辑中的旧规则例外。
   const filteredCategories = categories.filter((category) =>
-    category.type === type && (!category.deletedAt || category.id === rule?.categoryId));
+    category.type === type
+    && (!category.deletedAt || category.id === rule?.categoryId)
+    && (!isGroupCategory(categories, category.id) || category.id === rule?.categoryId));
 
   useEffect(() => {
     const categoryStillMatchesType = filteredCategories.some((category) => category.id === categoryId);
