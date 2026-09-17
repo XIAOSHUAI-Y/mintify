@@ -44,6 +44,7 @@ import {
 } from '../domain/reserveLedger';
 import {
   EXPENSE_CATEGORIES,
+  EXPENSE_SUB_CATEGORIES,
   FUND_EXPENSE_CATEGORIES,
   FUND_INCOME_CATEGORIES,
   INCOME_CATEGORIES,
@@ -94,6 +95,50 @@ export async function bootstrapIfNeeded(): Promise<void> {
         isBuiltIn: true,
       });
     }
+  }
+}
+
+/**
+ * 为已有账本补齐默认二级分类，不依赖数据库结构迁移。
+ * 与 ensureFundCategories 同样的规则：软删过的同名子分类算「已初始化」，
+ * 否则用户删掉的默认项会在下次启动时被重新创建。
+ */
+export async function ensureCategoryHierarchy(ledgerId: string): Promise<void> {
+  const categories = await getCategoriesByLedger(ledgerId);
+
+  for (const preset of EXPENSE_SUB_CATEGORIES) {
+    const parent = categories.find((category) =>
+      category.type === 'expense'
+      && category.name === preset.parent
+      // 一级分类必须是顶层且未删除；已经被移到别的分类下的不能再当父级，避免三级。
+      && !category.parentId
+      && !category.deletedAt);
+    if (!parent) continue;
+
+    const stableId = `category:${ledgerId}:sub:${encodeURIComponent(preset.parent)}:${encodeURIComponent(preset.name)}`;
+    const alreadyExists = categories.some((category) =>
+      // 稳定主键已存在就说明这个默认项初始化过：用户改名或软删后都不能再动它，
+      // 否则改名会被回退、删除会失效（两者的 id 都不变）。
+      category.id === stableId
+      || (category.parentId === parent.id && category.name === preset.name));
+    if (alreadyExists) continue;
+
+    const siblings = categories.filter((category) => category.parentId === parent.id && !category.deletedAt);
+    const child: Category = {
+      // 稳定主键让 StrictMode 或多窗口并发初始化最终落到同一条记录，不会产生重复子分类。
+      id: stableId,
+      ledgerId,
+      name: preset.name,
+      icon: preset.icon,
+      color: preset.color,
+      type: 'expense',
+      parentId: parent.id,
+      sortOrder: siblings.length,
+      isBuiltIn: true,
+    };
+    await saveCategory(child);
+    // 同一批里继续新增时，siblings 计数要跟上，否则 sortOrder 会重复。
+    categories.push(child);
   }
 }
 

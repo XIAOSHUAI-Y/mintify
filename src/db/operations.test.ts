@@ -26,6 +26,7 @@ import {
   deleteFundCategory,
   exportData,
   ensureFundCategories,
+  ensureCategoryHierarchy,
   getFundCategories,
   getFundTransactions,
   getLedgers,
@@ -225,8 +226,111 @@ describe('分类层级备份', () => {
   });
 });
 
-function ledger(): Ledger {
-  return {
+describe('默认二级分类', () => {
+  afterEach(async () => {
+    await closeDB();
+    await deleteDB(DB_NAME);
+  });
+
+  const food = (overrides: Partial<Category> = {}): Category =>
+    category({ id: 'food', name: '餐饮', isBuiltIn: true, ...overrides });
+
+  const childrenOf = async (parentId: string) =>
+    (await getCategoriesByLedger('daily-ledger')).filter((item) => item.parentId === parentId);
+
+  it('给已有账本补齐默认二级分类，全部标为内置且挂在同名一级分类下', async () => {
+    await saveCategory(food());
+
+    await ensureCategoryHierarchy('daily-ledger');
+
+    const children = await childrenOf('food');
+    expect(children.map((item) => item.name).sort()).toEqual(['午餐', '晚餐', '早餐', '聚餐', '外卖'].sort());
+    expect(children.every((item) => item.type === 'expense' && item.isBuiltIn)).toBe(true);
+    expect(children.map((item) => item.sortOrder).sort()).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it('重复执行不会产生重复子分类', async () => {
+    await saveCategory(food());
+
+    await ensureCategoryHierarchy('daily-ledger');
+    await ensureCategoryHierarchy('daily-ledger');
+    await ensureCategoryHierarchy('daily-ledger');
+
+    expect(await childrenOf('food')).toHaveLength(5);
+  });
+
+  it('被删掉的默认子分类不会再被重建', async () => {
+    await saveCategory(food());
+    await ensureCategoryHierarchy('daily-ledger');
+    const takeout = (await childrenOf('food')).find((item) => item.name === '外卖')!;
+    await deleteCategory(takeout.id);
+
+    await ensureCategoryHierarchy('daily-ledger');
+
+    const children = await childrenOf('food');
+    expect(children).toHaveLength(5);
+    expect(children.filter((item) => item.name === '外卖' && !item.deletedAt)).toHaveLength(0);
+  });
+
+  it('默认子分类被改名后不会被重建，改名保持有效', async () => {
+    await saveCategory(food());
+    await ensureCategoryHierarchy('daily-ledger');
+    const takeout = (await childrenOf('food')).find((item) => item.name === '外卖')!;
+    await saveCategory({ ...takeout, name: '外送' });
+
+    await ensureCategoryHierarchy('daily-ledger');
+
+    const children = await childrenOf('food');
+    expect(children).toHaveLength(5);
+    expect(children.filter((item) => item.name === '外卖')).toHaveLength(0);
+    expect(children.filter((item) => item.name === '外送')).toHaveLength(1);
+  });
+
+  it('用户已自建同名子分类时不重复创建', async () => {
+    await saveCategory(food());
+    await saveCategory(category({ id: 'mine', name: '外卖', parentId: 'food' }));
+
+    await ensureCategoryHierarchy('daily-ledger');
+
+    const takeouts = (await childrenOf('food')).filter((item) => item.name === '外卖');
+    expect(takeouts).toHaveLength(1);
+    expect(takeouts[0].id).toBe('mine');
+  });
+
+  it('一级分类不存在、被改名或被软删时都不补子级', async () => {
+    await saveCategory(category({ id: 'renamed', name: '吃饭', isBuiltIn: true }));
+    await saveCategory(category({ id: 'gone', name: '交通', isBuiltIn: true, deletedAt: 1 }));
+
+    await ensureCategoryHierarchy('daily-ledger');
+
+    const categories = await getCategoriesByLedger('daily-ledger');
+    expect(categories).toHaveLength(2);
+  });
+
+  it('已经是子分类的分类不会被当作父级再挂一层', async () => {
+    await saveCategory(category({ id: 'food', name: '餐饮', isBuiltIn: true }));
+    // 用户把「餐饮」移到了别的分类下，此时它不能再当父级，避免出现三级。
+    await saveCategory(category({ id: 'food-copy', name: '餐饮', parentId: 'other', sortOrder: 1 }));
+
+    await ensureCategoryHierarchy('daily-ledger');
+
+    const parent = (await getCategoriesByLedger('daily-ledger')).find((item) => item.id === 'food')!;
+    expect(parent.parentId).toBeUndefined();
+    expect(await childrenOf('food')).toHaveLength(5);
+  });
+
+  it('不碰收入分类，退款保持末级', async () => {
+    await saveCategory(category({ id: 'refund', name: '退款', type: 'income', isBuiltIn: true }));
+
+    await ensureCategoryHierarchy('daily-ledger');
+
+    const categories = await getCategoriesByLedger('daily-ledger');
+    expect(categories).toHaveLength(1);
+    expect(categories[0].parentId).toBeUndefined();
+  });
+});
+
+function ledger(): Ledger {  return {
     id: 'daily-ledger',
     name: '日常账本',
     icon: 'book',

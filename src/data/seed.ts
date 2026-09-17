@@ -15,8 +15,45 @@ export const EXPENSE_CATEGORIES: { name: string; icon: string; color: string }[]
   { name: '其他', icon: 'more-horizontal', color: '#9CA3AF' },
 ];
 
-export const INCOME_CATEGORIES: { name: string; icon: string; color: string }[] = [
-  { name: '退款', icon: 'rotate-ccw', color: '#F59E0B' },
+/**
+ * 常用的默认二级分类，挂在同名一级分类下，由 ensureCategoryHierarchy 补齐。
+ * parent 必须能在 EXPENSE_CATEGORIES 里按名字找到；收入侧（尤其「退款」）不配子分类。
+ */
+export const EXPENSE_SUB_CATEGORIES: {
+  parent: string;
+  name: string;
+  icon: string;
+  color: string;
+}[] = [
+  { parent: '餐饮', name: '早餐', icon: 'coffee', color: '#FB923C' },
+  { parent: '餐饮', name: '午餐', icon: 'utensils', color: '#FACC15' },
+  { parent: '餐饮', name: '晚餐', icon: 'utensils', color: '#F87171' },
+  { parent: '餐饮', name: '外卖', icon: 'package', color: '#F472B6' },
+  { parent: '餐饮', name: '聚餐', icon: 'utensils', color: '#A78BFA' },
+
+  { parent: '交通', name: '公交地铁', icon: 'bus', color: '#22D3EE' },
+  { parent: '交通', name: '打车', icon: 'car', color: '#60A5FA' },
+  { parent: '交通', name: '加油', icon: 'fuel', color: '#818CF8' },
+  { parent: '交通', name: '充电', icon: 'battery-charging', color: '#10B981' },
+  { parent: '交通', name: '租车', icon: 'car', color: '#34D399' },
+
+  { parent: '购物', name: '日用品', icon: 'shopping-cart', color: '#34D399' },
+  { parent: '购物', name: '服饰', icon: 'shirt', color: '#F472B6' },
+  { parent: '购物', name: '数码', icon: 'smartphone', color: '#818CF8' },
+
+  { parent: '娱乐', name: '游戏', icon: 'gamepad-2', color: '#A78BFA' },
+  { parent: '娱乐', name: '书影音', icon: 'book-open', color: '#FB923C' },
+  { parent: '娱乐', name: '会员', icon: 'repeat-2', color: '#22D3EE' },
+
+  { parent: '住房', name: '房租', icon: 'home', color: '#F472B6' },
+  { parent: '住房', name: '水电煤', icon: 'droplets', color: '#22D3EE' },
+  { parent: '住房', name: '物业', icon: 'lightbulb', color: '#FACC15' },
+
+  { parent: '通讯', name: '话费', icon: 'smartphone', color: '#22D3EE' },
+  { parent: '通讯', name: '宽带', icon: 'wifi', color: '#60A5FA' },
+];
+
+export const INCOME_CATEGORIES: { name: string; icon: string; color: string }[] = [  { name: '退款', icon: 'rotate-ccw', color: '#F59E0B' },
   { name: '工资', icon: 'banknote', color: '#10B981' },
   { name: '奖金', icon: 'gift', color: '#F59E0B' },
   { name: '投资', icon: 'trending-up', color: '#3B82F6' },

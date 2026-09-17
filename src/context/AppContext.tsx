@@ -26,6 +26,7 @@ import {
   ensureMonthlyBudgets,
   ensureRefundCategory,
   ensureFundCategories,
+  ensureCategoryHierarchy,
   generateRecurringTransactions,
   getBudgets,
   getDefaultLedger,
@@ -136,6 +137,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await ensureMonthlyBudgets(currentLedger.id);
     await ensureRefundCategory(currentLedger.id);
     await ensureFundCategories(currentLedger.id);
+    // 默认二级分类按需补齐：用户删掉的同名子分类不会再被重建。
+    await ensureCategoryHierarchy(currentLedger.id);
     await settlePreviousMonthBudgetReserve(currentLedger.id);
 
     const [
