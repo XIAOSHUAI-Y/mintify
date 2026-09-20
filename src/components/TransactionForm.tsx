@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DatePicker } from 'antd-mobile';
-import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank, Search, Package, ChevronLeft } from 'lucide-react';
+import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank, Search, Package, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
 import HorizontalScrollArea from './HorizontalScrollArea';
@@ -599,46 +599,79 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
               ) : (
                 <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">选择分类</div>
               )}
-              <div className="text-xs text-slate-400">{visibleCategories.length} 个</div>
+              <div className="text-xs text-slate-400">
+                {visibleCategories.length + (categoryParent ? 1 : 0)} 个
+              </div>
             </div>
             <div className="grid grid-cols-4 gap-x-3 gap-y-4">
+              {/* 下钻后第一格代表父级本身：不选二级就等于记在一级（报表里算「未细分」）。 */}
+              {categoryParent && (
+                <div className="relative flex flex-col items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setSelectedCategoryId(categoryParent.id);
+                      setCategoryParentId('');
+                    }}
+                    aria-label={`不选二级分类，记在${categoryParent.name}`}
+                    aria-pressed={selectedCategoryId === categoryParent.id}
+                    className="flex flex-col items-center gap-2"
+                  >
+                    <div
+                      className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
+                        selectedCategoryId === categoryParent.id
+                          ? 'text-white'
+                          : 'bg-gray-100 text-gray-700 dark:bg-slate-700/60 dark:text-slate-300'
+                      }`}
+                      style={{ backgroundColor: selectedCategoryId === categoryParent.id ? categoryParent.color : undefined }}
+                    >
+                      <Icon name={categoryParent.icon} size={24} />
+                    </div>
+                    <span className="text-xs">{categoryParent.name}</span>
+                    <span className="text-[10px] leading-none text-slate-400">不分二级</span>
+                  </button>
+                </div>
+              )}
               {visibleCategories.map((category) => {
-                // 分组本身不挂账单，但选中它下面的子分类时，父级格子要显示为选中态。
+                // 选中子分类时父级格子要显示为选中态；父级自己也能被选中（记在一级）。
                 const childCount = groupChildCount(category.id);
                 const selectedChild = childCount > 0 && selectedCategoryId
                   ? childCategories(category.id).find((child) => child.id === selectedCategoryId)
                   : undefined;
                 const selected = selectedCategoryId === category.id || Boolean(selectedChild);
+                const label = selectedChild ? selectedChild.name : category.name;
                 return (
-                  <button
-                    key={category.id}
-                    onClick={() => {
-                      if (childCount > 0) {
-                        setCategoryParentId(category.id);
-                        return;
-                      }
-                      setSelectedCategoryId(category.id);
-                      setCategoryParentId('');
-                    }}
-                    aria-label={childCount > 0 ? `展开${category.name}子分类` : `选择${category.name}分类`}
-                    aria-pressed={selected}
-                    className="relative flex flex-col items-center gap-2"
-                  >
-                    <div
-                      className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
-                        selected ? 'text-white' : 'bg-gray-100 text-gray-700 dark:bg-slate-700/60 dark:text-slate-300'
-                      }`}
-                      style={{ backgroundColor: selected ? category.color : undefined }}
+                  <div key={category.id} className="relative flex flex-col items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedCategoryId(category.id);
+                        setCategoryParentId('');
+                      }}
+                      aria-label={childCount > 0 ? `选择${category.name}（不分二级）` : `选择${category.name}分类`}
+                      aria-pressed={selected}
+                      className="flex flex-col items-center gap-2"
                     >
-                      <Icon name={category.icon} size={24} />
-                    </div>
+                      <div
+                        className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
+                          selected ? 'text-white' : 'bg-gray-100 text-gray-700 dark:bg-slate-700/60 dark:text-slate-300'
+                        }`}
+                        style={{ backgroundColor: selected ? category.color : undefined }}
+                      >
+                        <Icon name={category.icon} size={24} />
+                      </div>
+                      <span className="text-xs">{label}</span>
+                    </button>
                     {childCount > 0 && (
-                      <span className="absolute right-0 top-0 rounded-full bg-slate-200 px-1.5 text-[10px] font-medium text-slate-500 dark:bg-slate-600 dark:text-slate-200">
+                      <button
+                        onClick={() => setCategoryParentId(category.id)}
+                        aria-label={`展开${category.name}的${childCount}个子分类`}
+                        // 视觉上是小角标，靠 after 把热区撑到约 36×40，手机上点得到。
+                        className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center gap-0.5 rounded-full bg-slate-200 px-1.5 text-[10px] font-medium text-slate-500 after:absolute after:-bottom-1 after:-left-1 after:-right-2 after:-top-3 after:content-[''] dark:bg-slate-600 dark:text-slate-200"
+                      >
                         {childCount}
-                      </span>
+                        <ChevronRight size={11} />
+                      </button>
                     )}
-                    <span className="text-xs">{selectedChild ? selectedChild.name : category.name}</span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
