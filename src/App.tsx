@@ -1,19 +1,21 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { List, PieChart, User, Plus, WalletCards } from 'lucide-react';
+// 首页是首屏和默认路由，保持同步导入避免白屏闪烁；其余页面按路由拆包。
 import HomePage from './pages/HomePage';
-import ReportsPage from './pages/ReportsPage';
-import SettingsPage from './pages/SettingsPage';
-import BudgetPage from './pages/BudgetPage';
-import CategoryPage from './pages/CategoryPage';
-import RecurringPage from './pages/RecurringPage';
-import FundPage from './pages/FundPage';
-import ProjectPage from './pages/ProjectPage';
-import ReserveCenter from './components/ReserveCenter';
-import TransactionForm from './components/TransactionForm';
 import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import { getYearMonth } from './utils/helpers';
 import { isPrimaryRoute, type AppRoute } from './routing/hashRoute';
 import { useHashRoute } from './routing/useHashRoute';
+
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const BudgetPage = lazy(() => import('./pages/BudgetPage'));
+const CategoryPage = lazy(() => import('./pages/CategoryPage'));
+const RecurringPage = lazy(() => import('./pages/RecurringPage'));
+const FundPage = lazy(() => import('./pages/FundPage'));
+const ProjectPage = lazy(() => import('./pages/ProjectPage'));
+const ReserveCenter = lazy(() => import('./components/ReserveCenter'));
+const TransactionForm = lazy(() => import('./components/TransactionForm'));
 
 function App() {
   const { route, navigate } = useHashRoute();
@@ -36,6 +38,19 @@ function App() {
       document.removeEventListener('gesturechange', preventPageZoom);
       document.removeEventListener('gestureend', preventPageZoom);
     };
+  }, []);
+
+  useEffect(() => {
+    // 部署新版本后，还开着的旧页面再懒加载路由 chunk 会 404（Vite 派发 vite:preloadError）。
+    // 自动刷新一次即可拿到新版本；用 sessionStorage 卡住只刷一次，避免离线时反复刷新。
+    const handlePreloadError = (event: Event) => {
+      event.preventDefault();
+      if (sessionStorage.getItem('mintify:preload-retry') === '1') return;
+      sessionStorage.setItem('mintify:preload-retry', '1');
+      window.location.reload();
+    };
+    window.addEventListener('vite:preloadError', handlePreloadError);
+    return () => window.removeEventListener('vite:preloadError', handlePreloadError);
   }, []);
 
   const closeSecondaryPage = () => navigate(lastPrimaryRoute, { replace: true });
@@ -76,7 +91,15 @@ function App() {
 
   return (
     <div className="min-h-[100svh] bg-slate-50 pb-24 dark:bg-slate-900">
-      <main className="min-h-[100svh]">{renderContent()}</main>
+      <main className="min-h-[100svh]">
+        <Suspense
+          fallback={
+            <div className="flex min-h-[60svh] items-center justify-center text-sm text-slate-400">加载中…</div>
+          }
+        >
+          {renderContent()}
+        </Suspense>
+      </main>
 
       <PwaUpdatePrompt />
 

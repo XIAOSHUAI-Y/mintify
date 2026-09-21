@@ -24,6 +24,7 @@ import {
   deleteRecurringRule,
   deleteTransaction,
   ensureMonthlyBudgets,
+  ensureBaseCategories,
   ensureRefundCategory,
   ensureFundCategories,
   ensureCategoryHierarchy,
@@ -135,6 +136,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     // PWA 不能保证在每月 1 日凌晨被系统唤醒，启动时补齐可确保跨月后首次打开就完成继承。
     await ensureMonthlyBudgets(currentLedger.id);
+    // 必须在 ensureRefundCategory 之前：否则空账本会先被建出「退款」，基础分类就补不上了。
+    await ensureBaseCategories(currentLedger.id);
     await ensureRefundCategory(currentLedger.id);
     await ensureFundCategories(currentLedger.id);
     // 默认二级分类按需补齐：用户删掉的同名子分类不会再被重建。

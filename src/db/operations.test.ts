@@ -27,6 +27,7 @@ import {
   exportData,
   ensureFundCategories,
   ensureCategoryHierarchy,
+  ensureBaseCategories,
   getFundCategories,
   getFundTransactions,
   getLedgers,
@@ -327,6 +328,56 @@ describe('默认二级分类', () => {
     const categories = await getCategoriesByLedger('daily-ledger');
     expect(categories).toHaveLength(1);
     expect(categories[0].parentId).toBeUndefined();
+  });
+});
+
+describe('账本基础分类补齐', () => {
+  afterEach(async () => {
+    await closeDB();
+    await deleteDB(DB_NAME);
+  });
+
+  it('空账本补齐内置收支分类', async () => {
+    await ensureBaseCategories('daily-ledger');
+
+    const categories = await getCategoriesByLedger('daily-ledger');
+    expect(categories.filter((item) => item.type === 'expense')).toHaveLength(10);
+    expect(categories.filter((item) => item.type === 'income')).toHaveLength(7);
+    expect(categories.every((item) => item.isBuiltIn && !item.parentId)).toBe(true);
+    expect(categories.map((item) => item.sortOrder).sort((a, b) => a - b))
+      .toEqual(Array.from({ length: 17 }, (_, index) => index));
+    expect(categories.some((item) => item.name === '餐饮')).toBe(true);
+  });
+
+  it('账本里已经有分类时不再灌默认分类', async () => {
+    await saveCategory(category({ id: 'only-one', name: '只有这个' }));
+
+    await ensureBaseCategories('daily-ledger');
+
+    const categories = await getCategoriesByLedger('daily-ledger');
+    expect(categories).toHaveLength(1);
+    expect(categories[0].id).toBe('only-one');
+  });
+
+  it('分类被删空的账本不会被重新灌满', async () => {
+    await ensureBaseCategories('daily-ledger');
+    for (const item of await getCategoriesByLedger('daily-ledger')) {
+      await deleteCategory(item.id);
+    }
+
+    await ensureBaseCategories('daily-ledger');
+
+    const categories = await getCategoriesByLedger('daily-ledger');
+    expect(categories).toHaveLength(17);
+    expect(categories.every((item) => item.deletedAt)).toBe(true);
+  });
+
+  it('重复执行不会产生重复分类', async () => {
+    await ensureBaseCategories('daily-ledger');
+    await ensureBaseCategories('daily-ledger');
+    await ensureBaseCategories('daily-ledger');
+
+    expect(await getCategoriesByLedger('daily-ledger')).toHaveLength(17);
   });
 });
 

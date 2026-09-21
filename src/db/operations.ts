@@ -99,6 +99,35 @@ export async function bootstrapIfNeeded(): Promise<void> {
 }
 
 /**
+ * 为新账本补齐内置收支分类，不依赖数据库结构迁移。
+ * bootstrapIfNeeded 只在“账本数为 0”时写入内置分类，所以第二个及以后的账本会是空的。
+ * 规则：只要这个账本历史上出现过任何分类（含软删）就认为用户已经做过选择，不再灌默认分类。
+ */
+export async function ensureBaseCategories(ledgerId: string): Promise<void> {
+  const categories = await getCategoriesByLedger(ledgerId);
+  if (categories.length > 0) return;
+
+  const presets = [
+    ...EXPENSE_CATEGORIES.map((item) => ({ ...item, type: 'expense' as const })),
+    ...INCOME_CATEGORIES.map((item) => ({ ...item, type: 'income' as const })),
+  ];
+
+  for (const [index, preset] of presets.entries()) {
+    await saveCategory({
+      // 稳定主键让 StrictMode 或多窗口并发初始化最终落到同一条记录，不会产生重复分类。
+      id: `category:${ledgerId}:base:${preset.type}:${encodeURIComponent(preset.name)}`,
+      ledgerId,
+      name: preset.name,
+      icon: preset.icon,
+      color: preset.color,
+      type: preset.type,
+      sortOrder: index,
+      isBuiltIn: true,
+    });
+  }
+}
+
+/**
  * 为已有账本补齐默认二级分类，不依赖数据库结构迁移。
  * 与 ensureFundCategories 同样的规则：软删过的同名子分类算「已初始化」，
  * 否则用户删掉的默认项会在下次启动时被重新创建。

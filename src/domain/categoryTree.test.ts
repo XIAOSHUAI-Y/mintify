@@ -4,7 +4,6 @@ import {
   buildCategoryTree,
   getCategoryPath,
   getChildCategories,
-  getSelectableCategories,
   isGroupCategory,
   rollUpSpending,
   validateParentAssignment,
@@ -31,16 +30,12 @@ describe('分类层级', () => {
     expect(tree.roots.map((item) => item.id)).toEqual(['orphan']);
   });
 
-  it('有未软删子分类的分类是分组，分组不能直接挂账单', () => {
+  it('有未软删子分类的分类是分组', () => {
     expect(isGroupCategory(CATEGORIES, 'food')).toBe(true);
     expect(isGroupCategory(CATEGORIES, 'traffic')).toBe(false);
-    // 分组自己不可选，末级子分类可选。
-    const selectable = getSelectableCategories(CATEGORIES).map((item) => item.id);
-    expect(selectable).toEqual(['takeout', 'dine-in', 'traffic']);
-    expect(selectable).not.toContain('food');
   });
 
-  it('子分类全部软删后，父级重新变成可选分类', () => {
+  it('子分类全部软删后，父级重新变成普通分类', () => {
     const categories = [
       category({ id: 'food' }),
       category({ id: 'takeout', parentId: 'food', deletedAt: 1 }),

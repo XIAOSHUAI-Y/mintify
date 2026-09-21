@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DatePicker } from 'antd-mobile';
 import { Calendar, Tag, FileImage, X, FileText, Link2, RotateCcw, Landmark, PiggyBank, Search, Package, ChevronLeft, ChevronRight } from 'lucide-react';
+import { compressPhotoFile } from '../utils/imageResize';
 import { useApp } from '../context/AppContext';
 import { Icon } from './Icon';
 import HorizontalScrollArea from './HorizontalScrollArea';
@@ -159,12 +160,12 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     setAmount((prev) => prev.slice(0, -1));
   };
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    // 先清空 input 的 value，否则同一张图选第二次不会触发 change。
+    e.target.value = '';
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setPhoto(reader.result as string);
-    reader.readAsDataURL(file);
+    setPhoto(await compressPhotoFile(file));
   };
 
   const toggleTag = (tag: string) => {

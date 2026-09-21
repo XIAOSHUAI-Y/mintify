@@ -55,17 +55,6 @@ export function isGroupCategory(categories: Category[], categoryId: string): boo
   return getChildCategories(categories, categoryId).length > 0;
 }
 
-/** 可以直接挂账单的分类：未软删，且自己不分组（分组只能通过下钻选到子级）。 */
-export function getSelectableCategories(categories: Category[]): Category[] {
-  const groupIds = new Set<string>();
-  for (const category of categories) {
-    if (isLive(category) && category.parentId) groupIds.add(category.parentId);
-  }
-  return categories
-    .filter((category) => isLive(category) && !groupIds.has(category.id))
-    .sort(bySortOrder);
-}
-
 export function getCategoryPath(
   categories: Category[],
   categoryId: string,
