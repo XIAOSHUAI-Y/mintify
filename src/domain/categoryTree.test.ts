@@ -4,6 +4,7 @@ import {
   buildCategoryTree,
   getCategoryPath,
   getChildCategories,
+  buildParentMap,
   isGroupCategory,
   rollUpSpending,
   validateParentAssignment,
@@ -43,6 +44,12 @@ describe('分类层级', () => {
 
     expect(isGroupCategory(categories, 'food')).toBe(false);
     expect(getChildCategories(categories, 'food')).toEqual([]);
+  });
+
+  it('产出子级到父级的映射，只含真正设置了父级的分类', () => {
+    const parentMap = buildParentMap([...CATEGORIES, category({ id: 'lonely' })]);
+
+    expect([...parentMap.entries()].sort()).toEqual([['dine-in', 'food'], ['takeout', 'food']]);
   });
 
   it('取分类路径，父级与自身都可查到', () => {

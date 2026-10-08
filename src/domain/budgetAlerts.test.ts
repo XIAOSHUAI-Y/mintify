@@ -145,4 +145,56 @@ describe('buildBudgetAlerts', () => {
       savedTransaction: saved,
     })).toEqual([]);
   });
+
+  it('给二级分类记账时，一级预算跨过阈值同样提醒，并报一级的名字', () => {
+    const budgets = [makeBudget({ id: 'b1', categoryId: 'food', amount: 1000 })];
+    const saved = makeExpense({ id: 'new', categoryId: 'takeout', amount: 850 });
+
+    const alerts = buildBudgetAlerts({
+      budgets,
+      transactions: [saved],
+      ledgerId: 'ledger',
+      savedTransaction: saved,
+      categoryName: '外卖',
+      parentIdByCategoryId: new Map([['takeout', 'food']]),
+      categoryNameByCategoryId: new Map([['food', '餐饮'], ['takeout', '外卖']]),
+    });
+
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({ key: 'category:food', label: '「餐饮」预算', severity: 'warning' });
+  });
+
+  it('二级分类自己有预算时只看它，不再叠加到一级', () => {
+    const budgets = [
+      makeBudget({ id: 'parent', categoryId: 'food', amount: 1000 }),
+      makeBudget({ id: 'child', categoryId: 'takeout', amount: 100 }),
+    ];
+    const saved = makeExpense({ id: 'new', categoryId: 'takeout', amount: 90 });
+
+    const alerts = buildBudgetAlerts({
+      budgets,
+      transactions: [saved],
+      ledgerId: 'ledger',
+      savedTransaction: saved,
+      categoryName: '外卖',
+      parentIdByCategoryId: new Map([['takeout', 'food']]),
+      categoryNameByCategoryId: new Map([['food', '餐饮'], ['takeout', '外卖']]),
+    });
+
+    expect(alerts.map((alert) => alert.key)).toEqual(['category:takeout']);
+    expect(alerts[0].label).toBe('「外卖」预算');
+  });
+
+  it('不传父级映射时不会用一级预算去管二级支出', () => {
+    const budgets = [makeBudget({ id: 'b1', categoryId: 'food', amount: 1000 })];
+    const saved = makeExpense({ id: 'new', categoryId: 'takeout', amount: 850 });
+
+    expect(buildBudgetAlerts({
+      budgets,
+      transactions: [saved],
+      ledgerId: 'ledger',
+      savedTransaction: saved,
+      categoryName: '外卖',
+    })).toEqual([]);
+  });
 });

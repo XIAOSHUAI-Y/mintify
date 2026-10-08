@@ -11,7 +11,7 @@ import type { Transaction, TransactionMood } from '../types';
 import { getRemainingRefundableAmount } from '../domain/transactionAccounting';
 import { calculateMonthlyBudgetAvailability } from '../domain/reserveLedger';
 import { buildBudgetAlerts } from '../domain/budgetAlerts';
-import { buildCategoryTree, getChildCategories } from '../domain/categoryTree';
+import { buildCategoryTree, buildParentMap, getChildCategories } from '../domain/categoryTree';
 import { MOOD_OPTIONS } from '../domain/mood';
 import { showToast } from '../utils/toast';
 
@@ -71,6 +71,11 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
     [editingTransaction?.projectId, projects],
   );
   const selectedProject = projects.find((project) => project.id === projectId);
+  const parentIdByCategoryId = useMemo(() => buildParentMap(categories), [categories]);
+  const categoryNameByCategoryId = useMemo(
+    () => new Map(categories.map((category) => [category.id, category.name])),
+    [categories],
+  );
   const savingAvailability = useMemo(
     () => currentLedger
       ? calculateMonthlyBudgetAvailability({
@@ -79,9 +84,10 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
           reserveEntries,
           ledgerId: currentLedger.id,
           yearMonth: getYearMonth(occurredAt),
+          parentIdByCategoryId,
         })
       : { budgetAmount: 0, spentAmount: 0, reservedAmount: 0, availableAmount: 0 },
-    [budgets, currentLedger, occurredAt, reserveEntries, transactions],
+    [budgets, currentLedger, occurredAt, parentIdByCategoryId, reserveEntries, transactions],
   );
 
   const filteredCategories = useMemo(
@@ -269,6 +275,9 @@ export default function TransactionForm({ onClose, editingTransaction }: Transac
       savedTransaction: saved,
       previousTransaction: editingTransaction,
       categoryName: categories.find((category) => category.id === saved.categoryId)?.name,
+      // 二级分类自己没有预算时，用一级预算来判超支。
+      parentIdByCategoryId,
+      categoryNameByCategoryId: categoryNameByCategoryId,
     });
     if (alerts.length === 0) return;
     showToast(

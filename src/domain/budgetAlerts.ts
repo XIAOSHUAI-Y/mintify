@@ -21,6 +21,13 @@ interface BuildBudgetAlertsOptions {
   /** 编辑场景下的旧记录，用于还原保存前的使用率；新增时为空。 */
   previousTransaction?: Transaction | null;
   categoryName?: string;
+  /**
+   * 子级分类 id → 父级 id。传了才启用「一级预算兜底」：
+   * 二级分类自己没有预算时，用一级预算来算使用率。
+   */
+  parentIdByCategoryId?: ReadonlyMap<string, string>;
+  /** 分类 id → 名字，用于把提醒文案写成预算归属的那个分类。 */
+  categoryNameByCategoryId?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -34,6 +41,8 @@ export function buildBudgetAlerts({
   savedTransaction,
   previousTransaction,
   categoryName,
+  parentIdByCategoryId,
+  categoryNameByCategoryId,
 }: BuildBudgetAlertsOptions): BudgetAlert[] {
   if (savedTransaction.type !== 'expense') return [];
 
@@ -61,15 +70,25 @@ export function buildBudgetAlerts({
       spent: [...spending.values()].reduce((sum, amount) => sum + amount, 0),
     });
   }
+  // 二级分类自己没有预算时，交由一级预算兜底（一级的使用率要含全部子级）。
+  const savedParentId = parentIdByCategoryId?.get(savedTransaction.categoryId);
   const categoryBudget = monthBudgets.find(
     (budget) => !budget.includeOverall && budget.categoryId === savedTransaction.categoryId,
-  );
-  if (categoryBudget) {
+  ) ?? (savedParentId
+    ? monthBudgets.find((budget) => !budget.includeOverall && budget.categoryId === savedParentId)
+    : undefined);
+  if (categoryBudget?.categoryId) {
+    const ownerId = categoryBudget.categoryId;
+    const ownerSpent = [...spending].reduce(
+      (sum, [categoryId, amount]) =>
+        sum + (categoryId === ownerId || parentIdByCategoryId?.get(categoryId) === ownerId ? amount : 0),
+      0,
+    );
     targets.push({
-      key: `category:${savedTransaction.categoryId}`,
-      label: `「${categoryName ?? '分类'}」预算`,
+      key: `category:${ownerId}`,
+      label: `「${categoryNameByCategoryId?.get(ownerId) ?? categoryName ?? '分类'}」预算`,
       budget: categoryBudget,
-      spent: spending.get(savedTransaction.categoryId) ?? 0,
+      spent: ownerSpent,
     });
   }
 

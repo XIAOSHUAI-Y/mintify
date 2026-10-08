@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Budget, ReserveEntry, Transaction } from '../types';
-import { buildMonthlyBudgetOverview, calculateBudgetAllocationSummary } from './budgetAnalytics';
+import type { Budget, Category, ReserveEntry, Transaction } from '../types';
+import { buildMonthlyBudgetOverview, calculateBudgetAllocationSummary, getBudgetSpentAmount } from './budgetAnalytics';
+import { rollUpSpending } from './categoryTree';
 
 describe('月度预算图表数据', () => {
   it('识别超支，并同时给出预算配置与分类支出的环比变化', () => {
@@ -226,6 +227,176 @@ describe('预算分配结余', () => {
     });
   });
 });
+
+describe('预算已用金额', () => {
+  const spending = new Map([['food', 100], ['takeout', 200], ['traffic', 50]]);
+  // 真实调用方传的就是 rollUpSpending 的结果：子级 key 被合并到父级，遂不在表里。
+  const rolled = rollUpSpending(spending, [
+    category({ id: 'food' }),
+    category({ id: 'takeout', parentId: 'food' }),
+  ]);
+
+  it('一级预算取归并后的金额，含它下面的二级', () => {
+    expect(getBudgetSpentAmount('food', spending, rolled)).toBe(300);
+  });
+
+  it('二级预算取自己的直挂金额，不受归并结果缺 key 影响', () => {
+    expect(getBudgetSpentAmount('takeout', spending, rolled)).toBe(200);
+  });
+
+  it('没有支出的分类算 0', () => {
+    expect(getBudgetSpentAmount('dine-in', spending, rolled)).toBe(0);
+  });
+});
+
+describe('一级分类预算归属', () => {
+  const parentMap = new Map([
+    ['takeout', 'food'],
+    ['dine-in', 'food'],
+    ['taxi', 'traffic'],
+  ]);
+
+  const budgetOn = (id: string, categoryId: string, amount: number) =>
+    budget(id, '2026-08', amount, false, categoryId);
+
+  it('一级预算覆盖没有单独预算的二级支出', () => {
+    const summary = calculateBudgetAllocationSummary({
+      budgets: [budget('overall-aug', '2026-08', 1000, true), budgetOn('food-aug', 'food', 500)],
+      transactions: [expense('takeout', 'takeout', 400, new Date(2026, 7, 10).getTime())],
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+      parentIdByCategoryId: parentMap,
+    });
+
+    expect(summary.unbudgetedSpendingAmount).toBe(0);
+    expect(summary.categoryOverspendAmount).toBe(0);
+    expect(summary.allocatedAmount).toBe(500);
+    expect(summary.balanceAmount).toBe(500);
+  });
+
+  it('二级有自己的预算时优先算它，一级不再吸收', () => {
+    const summary = calculateBudgetAllocationSummary({
+      budgets: [
+        budget('overall-aug', '2026-08', 1000, true),
+        budgetOn('food-aug', 'food', 500),
+        budgetOn('takeout-aug', 'takeout', 100),
+      ],
+      transactions: [expense('takeout', 'takeout', 400, new Date(2026, 7, 10).getTime())],
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+      parentIdByCategoryId: parentMap,
+    });
+
+    expect(summary.categoryOverspendAmount).toBe(300);
+    expect(summary.unbudgetedSpendingAmount).toBe(0);
+    // 外卖 100 的额度本来就包在餐饮 500 里，不再重复计入分配。
+    expect(summary.allocatedAmount).toBe(500);
+    expect(summary.balanceAmount).toBe(200);
+  });
+
+  it('嵌套在一级预算里的二级预算不重复占用分配额', () => {
+    const summary = calculateBudgetAllocationSummary({
+      budgets: [
+        budget('overall-aug', '2026-08', 100, true),
+        budgetOn('food-aug', 'food', 50),
+        budgetOn('breakfast-aug', 'takeout', 20),
+      ],
+      transactions: [expense('breakfast', 'takeout', 20, new Date(2026, 7, 10).getTime())],
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+      parentIdByCategoryId: parentMap,
+    });
+
+    expect(summary.allocatedAmount).toBe(50);
+    expect(summary.balanceAmount).toBe(50);
+  });
+
+  it('没有一级预算时，二级预算照常全额计入分配', () => {
+    const summary = calculateBudgetAllocationSummary({
+      budgets: [
+        budget('overall-aug', '2026-08', 100, true),
+        budgetOn('takeout-aug', 'takeout', 20),
+        budgetOn('shopping-aug', 'shopping', 30),
+      ],
+      transactions: [],
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+      parentIdByCategoryId: parentMap,
+    });
+
+    expect(summary.allocatedAmount).toBe(50);
+    expect(summary.balanceAmount).toBe(50);
+  });
+
+  it('没有总预算时，嵌套的二级预算也不重复算进本月预算', () => {
+    const august = buildMonthlyBudgetOverview({
+      budgets: [budgetOn('food-aug', 'food', 50), budgetOn('takeout-aug', 'takeout', 20)],
+      transactions: [expense('takeout', 'takeout', 10, new Date(2026, 7, 10).getTime())],
+      ledgerId: 'daily-ledger',
+      year: 2026,
+      parentIdByCategoryId: parentMap,
+    })[7];
+
+    expect(august.budgetAmount).toBe(50);
+  });
+
+  it('一级预算同时吃下自己直挂的和没有独立预算的二级', () => {
+    const summary = calculateBudgetAllocationSummary({
+      budgets: [budgetOn('food-aug', 'food', 500), budgetOn('takeout-aug', 'takeout', 100)],
+      transactions: [
+        expense('dine-in', 'dine-in', 200, new Date(2026, 7, 10).getTime()),
+        expense('food-direct', 'food', 50, new Date(2026, 7, 11).getTime()),
+        expense('takeout', 'takeout', 150, new Date(2026, 7, 12).getTime()),
+      ],
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+      parentIdByCategoryId: parentMap,
+    });
+
+    // 餐饮 250 / 500 没超；外卖 150 / 100 超 50。
+    expect(summary.categoryOverspendAmount).toBe(50);
+    expect(summary.unbudgetedSpendingAmount).toBe(0);
+  });
+
+  it('父级没有预算时二级支出仍算未预算', () => {
+    const summary = calculateBudgetAllocationSummary({
+      budgets: [budgetOn('shopping-aug', 'shopping', 500)],
+      transactions: [expense('takeout', 'takeout', 400, new Date(2026, 7, 10).getTime())],
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+      parentIdByCategoryId: parentMap,
+    });
+
+    expect(summary.unbudgetedSpendingAmount).toBe(400);
+    expect(summary.categoryOverspendAmount).toBe(0);
+  });
+
+  it('不传父级映射时保持原有口径（二级支出算未预算）', () => {
+    const summary = calculateBudgetAllocationSummary({
+      budgets: [budgetOn('food-aug', 'food', 500)],
+      transactions: [expense('takeout', 'takeout', 400, new Date(2026, 7, 10).getTime())],
+      ledgerId: 'daily-ledger',
+      yearMonth: '2026-08',
+    });
+
+    expect(summary.unbudgetedSpendingAmount).toBe(400);
+    expect(summary.balanceAmount).toBe(-900);
+  });
+});
+
+function category(overrides: Partial<Category>): Category {
+  return {
+    id: 'category',
+    ledgerId: 'daily-ledger',
+    name: '分类',
+    icon: 'utensils',
+    color: '#F59E0B',
+    type: 'expense',
+    sortOrder: 0,
+    isBuiltIn: false,
+    ...overrides,
+  };
+}
 
 function budget(
   id: string,

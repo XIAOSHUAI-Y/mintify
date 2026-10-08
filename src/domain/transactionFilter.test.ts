@@ -207,8 +207,7 @@ describe('账单筛选', () => {
       .toEqual(['new', 'middle', 'old']);
   });
 
-  it('统计生效的筛选维度数量', () => {
-    expect(countActiveFilters(EMPTY_FILTER)).toBe(0);
+  it('统计生效的筛选维度数量', () => {    expect(countActiveFilters(EMPTY_FILTER)).toBe(0);
     expect(countActiveFilters({
       ...EMPTY_FILTER,
       keyword: '咖啡',
@@ -223,6 +222,43 @@ describe('账单筛选', () => {
     expect(countActiveFilters({ ...EMPTY_FILTER, type: 'expense', amountMin: 1, amountMax: 9 })).toBe(2);
     // 空串关键词、全角空格不该算生效。
     expect(countActiveFilters({ ...EMPTY_FILTER, keyword: '   ' })).toBe(0);
+  });
+});
+
+describe('分类层级筛选', () => {
+  const TREE: Category[] = [
+    category({ id: 'food', name: '餐饮' }),
+    category({ id: 'takeout', name: '外卖', parentId: 'food' }),
+    category({ id: 'dine-in', name: '堂食', parentId: 'food' }),
+    category({ id: 'traffic', name: '交通' }),
+  ];
+  const rows = [
+    transaction({ id: 'takeout-row', categoryId: 'takeout', occurredAt: day(2026, 9, 17) }),
+    transaction({ id: 'dine-in-row', categoryId: 'dine-in', occurredAt: day(2026, 9, 16) }),
+    transaction({ id: 'traffic-row', categoryId: 'traffic', occurredAt: day(2026, 9, 15) }),
+    transaction({ id: 'food-row', categoryId: 'food', occurredAt: day(2026, 9, 14) }),
+  ];
+
+  it('选中一级分类时命中它自己直挂的和全部二级分类', () => {
+    const ids = filterTransactions(rows, { ...EMPTY_FILTER, categoryId: 'food' }, TREE, NOW)
+      .map((item) => item.id);
+
+    expect(ids).toEqual(['takeout-row', 'dine-in-row', 'food-row']);
+  });
+
+  it('选中二级分类时只命中它自己', () => {
+    const ids = filterTransactions(rows, { ...EMPTY_FILTER, categoryId: 'takeout' }, TREE, NOW)
+      .map((item) => item.id);
+
+    expect(ids).toEqual(['takeout-row']);
+  });
+
+  it('分类没有 parentId 信息时退回精确匹配', () => {
+    const flat = TREE.map(({ id, name }) => ({ id, name }));
+    const ids = filterTransactions(rows, { ...EMPTY_FILTER, categoryId: 'food' }, flat, NOW)
+      .map((item) => item.id);
+
+    expect(ids).toEqual(['food-row']);
   });
 });
 

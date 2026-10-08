@@ -10,14 +10,15 @@ import { formatMoney, formatPercentage, generateId, getYearMonth } from '../util
 import {
   buildMonthlyBudgetOverview,
   calculateBudgetAllocationSummary,
+  getBudgetSpentAmount,
   type BudgetAllocationSummary,
   type MonthlyBudgetOverview,
 } from '../domain/budgetAnalytics';
 import { calculateMonthlyReserveDestinations, getSavingsAllocationProgress } from '../domain/reserveLedger';
 import { buildBudgetReserveTransfer, type BudgetReserveDestination } from '../domain/budgetReserveTransfer';
 import { getNetSpendingByCategory } from '../domain/transactionAccounting';
-import { isGroupCategory } from '../domain/categoryTree';
-import type { Budget, SavingsPlan, Transaction } from '../types';
+import { buildCategoryTree, buildParentMap, rollUpSpending } from '../domain/categoryTree';
+import type { Budget, Category, SavingsPlan, Transaction } from '../types';
 
 export default function BudgetPage() {
   const {
@@ -79,6 +80,8 @@ export default function BudgetPage() {
     return () => window.clearTimeout(timer);
   }, [currentLedger, preferenceLoaded, selectedYearMonth, viewMode]);
 
+  const parentIdByCategoryId = useMemo(() => buildParentMap(categories), [categories]);
+
   const overallBudget = useMemo(
     () => budgets.find((b) => b.ledgerId === currentLedger?.id && b.includeOverall && b.yearMonth === selectedYearMonth),
     [budgets, currentLedger?.id, selectedYearMonth]
@@ -97,9 +100,10 @@ export default function BudgetPage() {
           ledgerId: currentLedger.id,
           yearMonth: selectedYearMonth,
           reserveEntries,
+          parentIdByCategoryId,
         })
       : EMPTY_ALLOCATION_SUMMARY,
-    [budgets, currentLedger, reserveEntries, selectedYearMonth, transactions]
+    [budgets, currentLedger, parentIdByCategoryId, reserveEntries, selectedYearMonth, transactions]
   );
 
   const spendingByCategory = useMemo(
@@ -112,6 +116,12 @@ export default function BudgetPage() {
     [currentLedger, selectedYearMonth, transactions],
   );
 
+  // 一级分类的预算要统计它下面所有二级的支出，所以展示用的金额取归并结果。
+  const rolledSpendingByCategory = useMemo(
+    () => rollUpSpending(spendingByCategory, categories),
+    [spendingByCategory, categories],
+  );
+
   const yearlyOverview = useMemo(
     () => currentLedger
       ? buildMonthlyBudgetOverview({
@@ -120,9 +130,10 @@ export default function BudgetPage() {
           reserveEntries,
           ledgerId: currentLedger.id,
           year: selectedYear,
+          parentIdByCategoryId,
         })
       : [],
-    [budgets, currentLedger, reserveEntries, selectedYear, transactions],
+    [budgets, currentLedger, parentIdByCategoryId, reserveEntries, selectedYear, transactions],
   );
 
   const selectedMonthReserved = useMemo(
@@ -144,7 +155,10 @@ export default function BudgetPage() {
 
   const calculateSpent = (budget: Budget) => {
     if (budget.includeOverall) return [...spendingByCategory.values()].reduce((sum, amount) => sum + amount, 0);
-    return budget.categoryId ? spendingByCategory.get(budget.categoryId) ?? 0 : 0;
+    // 一级预算含全部子级，二级预算只看自己。
+    return budget.categoryId
+      ? getBudgetSpentAmount(budget.categoryId, spendingByCategory, rolledSpendingByCategory)
+      : 0;
   };
 
   return (
@@ -292,9 +306,8 @@ export default function BudgetPage() {
           budgetType={editingBudget?.includeOverall ? 'overall' : creatingBudgetType || 'category'}
           categories={categories.filter((category) =>
             category.type === 'expense'
-            && (!category.deletedAt || category.id === editingBudget?.categoryId)
-            // 分组分类不挂账单，给它设预算永远是 0，因此不作为候选；编辑中的旧预算例外。
-            && (!isGroupCategory(categories, category.id) || category.id === editingBudget?.categoryId))}
+            // 一级分类也能直接设预算（覆盖没有单独预算的二级），因此不再排除分组分类。
+            && (!category.deletedAt || category.id === editingBudget?.categoryId))}
           budgets={budgets}
           transactions={transactions}
           reserveEntries={reserveEntries}
@@ -978,7 +991,7 @@ function BudgetForm({
 }: {
   budget: Budget | null;
   budgetType: 'overall' | 'category';
-  categories: { id: string; name: string; icon: string; color: string }[];
+  categories: Category[];
   budgets: Budget[];
   transactions: Transaction[];
   reserveEntries: import('../types').ReserveEntry[];
@@ -997,6 +1010,18 @@ function BudgetForm({
     [categories, categoryId]
   );
 
+  // 一级分类按「自己 + 它的二级」分组展示，两个层级都能直接选。
+  const categoryTree = useMemo(() => buildCategoryTree(categories), [categories]);
+  const parentIdByCategoryId = useMemo(() => buildParentMap(categories), [categories]);
+  const categoryOptions = useMemo(
+    () => categoryTree.roots.flatMap((root) => [
+      { category: root, depth: 0 },
+      ...(categoryTree.childrenByParent.get(root.id) ?? [])
+        .map((child) => ({ category: child, depth: 1 })),
+    ]),
+    [categoryTree],
+  );
+
   const currentAllocationSummary = useMemo(
     () => currentLedger
       ? calculateBudgetAllocationSummary({
@@ -1005,9 +1030,10 @@ function BudgetForm({
           ledgerId: currentLedger.id,
           yearMonth,
           reserveEntries,
+          parentIdByCategoryId,
         })
       : EMPTY_ALLOCATION_SUMMARY,
-    [budgets, currentLedger, reserveEntries, transactions, yearMonth]
+    [budgets, currentLedger, parentIdByCategoryId, reserveEntries, transactions, yearMonth]
   );
   const projectedBalance = useMemo(() => {
     if (!currentLedger || isOverall || !categoryId || !amount || isNaN(Number(amount))) return null;
@@ -1030,8 +1056,9 @@ function BudgetForm({
       ledgerId: currentLedger.id,
       yearMonth,
       reserveEntries,
+      parentIdByCategoryId,
     }).balanceAmount;
-  }, [amount, budget, budgets, categoryId, currentLedger, isOverall, reserveEntries, transactions, yearMonth]);
+  }, [amount, budget, budgets, categoryId, currentLedger, isOverall, parentIdByCategoryId, reserveEntries, transactions, yearMonth]);
 
   const handleSave = () => {
     if (!currentLedger || !amount || isNaN(Number(amount))) return;
@@ -1083,7 +1110,7 @@ function BudgetForm({
               placement="bottom-start"
               content={(
                 <div className="mintify-budget-category-options">
-                  {categories.map((category) => {
+                  {categoryOptions.map(({ category, depth }) => {
                     const selected = category.id === categoryId;
                     return (
                       <button
@@ -1097,12 +1124,19 @@ function BudgetForm({
                         }}
                       >
                         <span
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+                          className={`flex shrink-0 items-center justify-center rounded-xl text-white shadow-sm ${
+                            depth > 0 ? 'h-7 w-7' : 'h-9 w-9'
+                          }`}
                           style={{ backgroundColor: category.color }}
                         >
-                          <Icon name={category.icon} size={17} />
+                          <Icon name={category.icon} size={depth > 0 ? 14 : 17} />
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-left font-medium text-slate-700 dark:text-slate-200">
+                        <span
+                          className={`min-w-0 flex-1 truncate text-left text-slate-700 dark:text-slate-200 ${
+                            depth > 0 ? 'pl-1 text-[13px]' : 'font-medium'
+                          }`}
+                        >
+                          {depth > 0 && <span className="mr-1 text-slate-400 dark:text-slate-500">·</span>}
                           {category.name}
                         </span>
                         <span className={`flex h-6 w-6 items-center justify-center rounded-full ${

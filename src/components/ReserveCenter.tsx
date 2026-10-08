@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { calculateMonthlyBudgetAvailability, calculateReserveBalances, getSavingsPlanProgress } from '../domain/reserveLedger';
+import { buildParentMap } from '../domain/categoryTree';
 import { formatMoney, formatPercentage, generateId, getYearMonth } from '../utils/helpers';
 import { useIsDark } from '../theme';
 import type { ReserveEntry, SavingsPlan } from '../types';
@@ -38,6 +39,7 @@ export default function ReserveCenter({
   const {
     currentLedger,
     budgets,
+    categories,
     transactions,
     savingsPlans,
     reserveEntries,
@@ -64,6 +66,7 @@ export default function ReserveCenter({
     () => calculateReserveBalances(savingsPlans, reserveEntries),
     [reserveEntries, savingsPlans],
   );
+  const parentIdByCategoryId = useMemo(() => buildParentMap(categories), [categories]);
   const availability = useMemo(
     () => currentLedger
       ? calculateMonthlyBudgetAvailability({
@@ -72,9 +75,10 @@ export default function ReserveCenter({
           reserveEntries,
           ledgerId: currentLedger.id,
           yearMonth,
+          parentIdByCategoryId,
         })
       : { baseBudgetAmount: 0, supplementAmount: 0, budgetAmount: 0, spentAmount: 0, reservedAmount: 0, availableAmount: 0 },
-    [budgets, currentLedger, reserveEntries, transactions, yearMonth],
+    [budgets, currentLedger, parentIdByCategoryId, reserveEntries, transactions, yearMonth],
   );
 
   if (!currentLedger) return null;

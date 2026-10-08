@@ -45,7 +45,7 @@ export const DATE_PRESET_OPTIONS: { value: DatePreset; label: string }[] = [
 export function filterTransactions(
   transactions: Transaction[],
   filter: TransactionFilter,
-  categories: { id: string; name: string }[],
+  categories: { id: string; name: string; parentId?: string }[],
   now: number = Date.now(),
 ): Transaction[] {
   const range = resolveDateRange(filter.datePreset, now);
@@ -53,11 +53,19 @@ export function filterTransactions(
   const categoryNames = new Map(
     categories.map((category) => [category.id, category.name.toLowerCase()]),
   );
+  // 选中一级分类时要能搜出它下面所有二级的账单，所以需要子级 → 父级的映射。
+  const parentIdByCategoryId = new Map(
+    categories.flatMap((category) => (category.parentId ? [[category.id, category.parentId] as const] : [])),
+  );
 
   return transactions
     .filter((transaction) => {
       if (filter.type !== 'all' && transaction.type !== filter.type) return false;
-      if (filter.categoryId && transaction.categoryId !== filter.categoryId) return false;
+      if (filter.categoryId) {
+        const matchesSelf = transaction.categoryId === filter.categoryId;
+        const matchesParent = parentIdByCategoryId.get(transaction.categoryId) === filter.categoryId;
+        if (!matchesSelf && !matchesParent) return false;
+      }
       if (range && (transaction.occurredAt < range.start || transaction.occurredAt > range.end)) return false;
       if (filter.amountMin !== undefined && transaction.amount < filter.amountMin) return false;
       if (filter.amountMax !== undefined && transaction.amount > filter.amountMax) return false;

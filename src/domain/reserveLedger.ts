@@ -1,5 +1,5 @@
 import type { Budget, ReserveEntry, SavingsPlan, Transaction } from '../types';
-import { calculateBudgetAllocationSummary } from './budgetAnalytics';
+import { calculateBudgetAllocationSummary, getMonthlyBudgetAmount } from './budgetAnalytics';
 import { getNetSpendingByCategory } from './transactionAccounting';
 
 export interface ReserveBalances {
@@ -165,18 +165,19 @@ export function calculateMonthlyBudgetAvailability({
   reserveEntries,
   ledgerId,
   yearMonth,
+  parentIdByCategoryId,
 }: {
   budgets: Budget[];
   transactions: Transaction[];
   reserveEntries: ReserveEntry[];
   ledgerId: string;
   yearMonth: string;
+  /** 子级分类 id → 父级 id；传了才能让一级预算兜底它下面二级的支出。 */
+  parentIdByCategoryId?: ReadonlyMap<string, string>;
 }): MonthlyBudgetAvailability {
   const monthBudgets = budgets.filter((budget) =>
     budget.ledgerId === ledgerId && budget.yearMonth === yearMonth && budget.period === 'monthly');
-  const overall = monthBudgets.find((budget) => budget.includeOverall);
-  const baseBudgetAmount = overall?.amount
-    ?? monthBudgets.filter((budget) => !budget.includeOverall).reduce((sum, budget) => sum + budget.amount, 0);
+  const baseBudgetAmount = getMonthlyBudgetAmount(monthBudgets, parentIdByCategoryId);
   const spending = getNetSpendingByCategory(
     transactions.filter((transaction) => transaction.ledgerId === ledgerId),
     yearMonth,
@@ -188,6 +189,7 @@ export function calculateMonthlyBudgetAvailability({
     reserveEntries,
     ledgerId,
     yearMonth,
+    parentIdByCategoryId,
   });
 
   return {

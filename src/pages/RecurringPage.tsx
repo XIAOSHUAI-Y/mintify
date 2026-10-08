@@ -4,7 +4,7 @@ import { useApp } from '../context/AppContext';
 import { Icon } from '../components/Icon';
 import { useConfirmDeletion } from '../context/ConfirmDialogContext';
 import { generateId, formatMoney, formatShortDate } from '../utils/helpers';
-import { isGroupCategory } from '../domain/categoryTree';
+import { buildCategoryTree } from '../domain/categoryTree';
 import type { Category, RecurringRule } from '../types';
 
 interface RecurringPageProps {
@@ -151,11 +151,17 @@ function RecurringForm({
   );
   const [note, setNote] = useState(rule?.note || '');
 
-  // 分组分类（带子分类）不挂账单，因此不能作为周期规则的目标；编辑中的旧规则例外。
+  // 一级分类也能直接挂周期规则（相当于「整个一级」），所以不再排除分组分类。
   const filteredCategories = categories.filter((category) =>
     category.type === type
-    && (!category.deletedAt || category.id === rule?.categoryId)
-    && (!isGroupCategory(categories, category.id) || category.id === rule?.categoryId));
+    && (!category.deletedAt || category.id === rule?.categoryId));
+
+  // 按「一级 + 它的二级」顺序列出，二级用缩进表示层级。
+  const tree = buildCategoryTree(filteredCategories);
+  const categoryOptions = tree.roots.flatMap((root) => [
+    { category: root, depth: 0 },
+    ...(tree.childrenByParent.get(root.id) ?? []).map((child) => ({ category: child, depth: 1 })),
+  ]);
 
   useEffect(() => {
     const categoryStillMatchesType = filteredCategories.some((category) => category.id === categoryId);
@@ -215,8 +221,10 @@ function RecurringForm({
           className="w-full p-3 border border-gray-200 rounded-lg mb-3 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
         >
           <option value="">选择分类</option>
-          {filteredCategories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
+          {categoryOptions.map(({ category, depth }) => (
+            <option key={category.id} value={category.id}>
+              {depth > 0 ? `　${category.name}` : category.name}
+            </option>
           ))}
         </select>
 

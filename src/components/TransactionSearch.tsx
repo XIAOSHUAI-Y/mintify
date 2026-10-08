@@ -6,7 +6,7 @@ import TransactionDetail from './TransactionDetail';
 import HorizontalScrollArea from './HorizontalScrollArea';
 import { formatDateHeader, formatMoney } from '../utils/helpers';
 import { isRefund } from '../domain/transactionAccounting';
-import { isGroupCategory } from '../domain/categoryTree';
+import { buildCategoryTree } from '../domain/categoryTree';
 import {
   DATE_PRESET_OPTIONS,
   EMPTY_FILTER,
@@ -67,6 +67,17 @@ export default function TransactionSearch({ onClose }: { onClose: () => void }) 
     () => filterTransactions(ledgerTransactions, activeFilter, categories, Date.now()),
     [activeFilter, categories, ledgerTransactions],
   );
+
+  /** 分类筛选项：一级和二级都可选，选中一级会命中它下面所有二级的账单。 */
+  const categoryOptions = useMemo(() => {
+    const visible = categories.filter((category) =>
+      !category.deletedAt && (typeFilter === 'all' || category.type === typeFilter));
+    const tree = buildCategoryTree(visible);
+    return tree.roots.flatMap((root) => [
+      { category: root, depth: 0 },
+      ...(tree.childrenByParent.get(root.id) ?? []).map((child) => ({ category: child, depth: 1 })),
+    ]);
+  }, [categories, typeFilter]);
 
   /** 标签候选来自当前账本真实用过的标签，按使用次数排序，避免出现筛了必然为空的条件。 */
   const availableTags = useMemo(() => {
@@ -180,25 +191,19 @@ export default function TransactionSearch({ onClose }: { onClose: () => void }) 
           >
             全部分类
           </button>
-          {categories
-            .filter((category) =>
-              !category.deletedAt
-              && (typeFilter === 'all' || category.type === typeFilter)
-              // 分组分类自己不带账单，选中它只会搜出空结果，所以只列末级分类。
-              && !isGroupCategory(categories, category.id))
-            .map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setCategoryId(categoryId === category.id ? '' : category.id)}
-                aria-pressed={categoryId === category.id}
-                className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm ${
-                  categoryId === category.id ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300'
-                }`}
-              >
-                <Icon name={category.icon} size={14} />
-                {category.name}
-              </button>
-            ))}
+          {categoryOptions.map(({ category, depth }) => (
+            <button
+              key={category.id}
+              onClick={() => setCategoryId(categoryId === category.id ? '' : category.id)}
+              aria-pressed={categoryId === category.id}
+              className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm ${
+                categoryId === category.id ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-300'
+              }`}
+            >
+              <Icon name={category.icon} size={14} />
+              {depth > 0 ? `·${category.name}` : category.name}
+            </button>
+          ))}
         </HorizontalScrollArea>
       </div>
 

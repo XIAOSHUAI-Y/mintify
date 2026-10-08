@@ -20,6 +20,18 @@ const bySortOrder = (a: Category, b: Category) => a.sortOrder - b.sortOrder;
 const isLive = (category: Category) => !category.deletedAt;
 
 /**
+ * 子级 id → 父级 id。预算归属要靠它把二级支出归到一级预算上，
+ * 只含真正设置了父级的分类（软删的也保留，历史金额仍要归属）。
+ */
+export function buildParentMap(categories: Category[]): Map<string, string> {
+  const parents = new Map<string, string>();
+  for (const category of categories) {
+    if (category.parentId) parents.set(category.id, category.parentId);
+  }
+  return parents;
+}
+
+/**
  * 按 parentId 归组。父级不存在（或自引用）时降级为顶层，
  * 保证任何分类都不会因为脏数据从界面上消失。
  */

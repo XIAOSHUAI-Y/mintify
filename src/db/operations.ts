@@ -12,6 +12,7 @@ import type {
   Transaction,
 } from '../types';
 import { shouldRemoveLinkedMainIncome } from '../domain/fundLedger';
+import { buildParentMap } from '../domain/categoryTree';
 import {
   getNetSpendingByCategory,
   getRemainingRefundableAmount,
@@ -612,10 +613,12 @@ async function validateReserveEntry(entry: ReserveEntry): Promise<void> {
     if (!entry.sourceYearMonth || !/^\d{4}-(0[1-9]|1[0-2])$/.test(entry.sourceYearMonth)) {
       throw new Error('预算来源月份不正确');
     }
-    const [budgets, transactions] = await Promise.all([
+    const [budgets, transactions, categories] = await Promise.all([
       getBudgetsByLedger(entry.ledgerId),
       getTransactionsByLedger(entry.ledgerId),
+      getCategoriesByLedger(entry.ledgerId),
     ]);
+    const parentIdByCategoryId = buildParentMap(categories);
     const availability = entry.kind === 'period-settlement'
       ? calculateMonthlyPeriodSettlement({
           budgets,
@@ -630,6 +633,7 @@ async function validateReserveEntry(entry: ReserveEntry): Promise<void> {
           reserveEntries: entries,
           ledgerId: entry.ledgerId,
           yearMonth: entry.sourceYearMonth,
+          parentIdByCategoryId,
         });
     if (entry.amount > availability.availableAmount) throw new Error('转入金额超过该月可用预算');
   } else {

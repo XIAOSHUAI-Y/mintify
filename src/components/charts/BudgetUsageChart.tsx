@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, Cell, Legend, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { buildMonthlyBudgetOverview, type BudgetChange, type SpendingChange } from '../../domain/budgetAnalytics';
+import { buildParentMap } from '../../domain/categoryTree';
 import { formatMoney, formatPercentage } from '../../utils/helpers';
 import type { Budget, Category, Transaction } from '../../types';
 import HorizontalScrollArea from '../HorizontalScrollArea';
@@ -20,8 +21,17 @@ export default function BudgetUsageChart({
   ledgerId,
   year,
 }: BudgetUsageChartProps) {
-  const overview = useMemo(() => buildMonthlyBudgetOverview({ budgets, transactions, ledgerId, year }), [
+  // 一级/二级预算嵌套时额度只算一次，这里用同一套父级映射。
+  const parentIdByCategoryId = useMemo(() => buildParentMap(categories), [categories]);
+  const overview = useMemo(() => buildMonthlyBudgetOverview({
     budgets,
+    transactions,
+    ledgerId,
+    year,
+    parentIdByCategoryId,
+  }), [
+    budgets,
+    parentIdByCategoryId,
     transactions,
     ledgerId,
     year,
