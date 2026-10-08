@@ -1010,17 +1010,30 @@ function BudgetForm({
     [categories, categoryId]
   );
 
-  // 一级分类按「自己 + 它的二级」分组展示，两个层级都能直接选。
+  // 一级分类默认收起，点右侧角标才展开它的二级，避免一次列出几十行。
   const categoryTree = useMemo(() => buildCategoryTree(categories), [categories]);
   const parentIdByCategoryId = useMemo(() => buildParentMap(categories), [categories]);
-  const categoryOptions = useMemo(
-    () => categoryTree.roots.flatMap((root) => [
-      { category: root, depth: 0 },
-      ...(categoryTree.childrenByParent.get(root.id) ?? [])
-        .map((child) => ({ category: child, depth: 1 })),
-    ]),
+  const categoryGroups = useMemo(
+    () => categoryTree.roots.map((root) => ({
+      root,
+      children: categoryTree.childrenByParent.get(root.id) ?? [],
+    })),
     [categoryTree],
   );
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([]);
+  const toggleCategoryExpanded = (id: string) => {
+    setExpandedCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]);
+  };
+  // 当前选中的是二级时，打开面板要把它所在的一级展开，否则看不到选中项。
+  const handleCategorySelectOpenChange = (visible: boolean) => {
+    setCategorySelectOpen(visible);
+    if (!visible) return;
+    const parentId = categories.find((category) => category.id === categoryId)?.parentId;
+    if (parentId) {
+      setExpandedCategoryIds((prev) => (prev.includes(parentId) ? prev : [...prev, parentId]));
+    }
+  };
 
   const currentAllocationSummary = useMemo(
     () => currentLedger
@@ -1105,46 +1118,90 @@ function BudgetForm({
             <Popover
               className="mintify-budget-category-select"
               visible={categorySelectOpen}
-              onVisibleChange={setCategorySelectOpen}
+              onVisibleChange={handleCategorySelectOpenChange}
               trigger="click"
               placement="bottom-start"
               content={(
                 <div className="mintify-budget-category-options">
-                  {categoryOptions.map(({ category, depth }) => {
-                    const selected = category.id === categoryId;
+                  {categoryGroups.map(({ root, children }) => {
+                    const rootSelected = root.id === categoryId;
+                    const expanded = expandedCategoryIds.includes(root.id);
                     return (
-                      <button
-                        type="button"
-                        key={category.id}
-                        aria-selected={selected}
-                        className={`mintify-budget-category-option ${selected ? 'is-selected' : ''}`}
-                        onClick={() => {
-                          setCategoryId(category.id);
-                          setCategorySelectOpen(false);
-                        }}
-                      >
-                        <span
-                          className={`flex shrink-0 items-center justify-center rounded-xl text-white shadow-sm ${
-                            depth > 0 ? 'h-7 w-7' : 'h-9 w-9'
-                          }`}
-                          style={{ backgroundColor: category.color }}
-                        >
-                          <Icon name={category.icon} size={depth > 0 ? 14 : 17} />
-                        </span>
-                        <span
-                          className={`min-w-0 flex-1 truncate text-left text-slate-700 dark:text-slate-200 ${
-                            depth > 0 ? 'pl-1 text-[13px]' : 'font-medium'
-                          }`}
-                        >
-                          {depth > 0 && <span className="mr-1 text-slate-400 dark:text-slate-500">·</span>}
-                          {category.name}
-                        </span>
-                        <span className={`flex h-6 w-6 items-center justify-center rounded-full ${
-                          selected ? 'bg-amber-500 text-white' : 'text-transparent'
-                        }`}>
-                          <Check size={15} strokeWidth={3} />
-                        </span>
-                      </button>
+                      <div key={root.id}>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            aria-selected={rootSelected}
+                            className={`mintify-budget-category-option ${rootSelected ? 'is-selected' : ''}`}
+                            onClick={() => {
+                              setCategoryId(root.id);
+                              setCategorySelectOpen(false);
+                            }}
+                          >
+                            <span
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+                              style={{ backgroundColor: root.color }}
+                            >
+                              <Icon name={root.icon} size={17} />
+                            </span>
+                            <span className="min-w-0 flex-1 truncate text-left font-medium text-slate-700 dark:text-slate-200">
+                              {root.name}
+                            </span>
+                            <span className={`flex h-6 w-6 items-center justify-center rounded-full ${
+                              children.length > 0 ? 'mr-[5rem]' : ''
+                            } ${rootSelected ? 'bg-amber-500 text-white' : 'text-transparent'}`}>
+                              <Check size={15} strokeWidth={3} />
+                            </span>
+                          </button>
+                          {children.length > 0 && (
+                            <button
+                              type="button"
+                              aria-label={`${expanded ? '收起' : '展开'}${root.name}的${children.length}个二级分类`}
+                              aria-expanded={expanded}
+                              className="absolute right-11 top-1/2 flex min-h-9 min-w-9 -translate-y-1/2 items-center justify-center gap-0.5 rounded-lg px-1 text-xs font-medium text-slate-400 active:bg-slate-100 dark:text-slate-500 dark:active:bg-slate-700"
+                              onClick={() => toggleCategoryExpanded(root.id)}
+                            >
+                              {children.length}
+                              <ChevronDown size={14} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                            </button>
+                          )}
+                        </div>
+                        {expanded && (
+                          <div className="pl-4">
+                            {children.map((child) => {
+                              const childSelected = child.id === categoryId;
+                              return (
+                                <button
+                                  type="button"
+                                  key={child.id}
+                                  aria-selected={childSelected}
+                                  className={`mintify-budget-category-option ${childSelected ? 'is-selected' : ''}`}
+                                  onClick={() => {
+                                    setCategoryId(child.id);
+                                    setCategorySelectOpen(false);
+                                  }}
+                                >
+                                  <span
+                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl text-white shadow-sm"
+                                    style={{ backgroundColor: child.color }}
+                                  >
+                                    <Icon name={child.icon} size={14} />
+                                  </span>
+                                  <span className="min-w-0 flex-1 truncate text-left text-[13px] text-slate-700 dark:text-slate-200">
+                                    <span className="mr-1 text-slate-400 dark:text-slate-500">·</span>
+                                    {child.name}
+                                  </span>
+                                  <span className={`flex h-6 w-6 items-center justify-center rounded-full ${
+                                    childSelected ? 'bg-amber-500 text-white' : 'text-transparent'
+                                  }`}>
+                                    <Check size={15} strokeWidth={3} />
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
